@@ -4704,73 +4704,92 @@ async function deleteFMSSheet(id) {
 
 // ── Edit FMS ──
 async function openEditFMS() {
-  if (!fmsActiveId) return;
-  const usersRes = await api('/api/users');
-  fmsAllUsers = Array.isArray(usersRes) ? usersRes : [];
-  const data = await api(`/api/fms/${fmsActiveId}`);
-  const { sheet, steps } = data;
+  if (!fmsActiveId) { showToast('Pehle koi FMS select karo', 'error'); return; }
 
-  document.getElementById('editFmsFmsName').value = sheet.fms_name || sheet.sheet_name;
-  document.getElementById('editFmsSheetName').value = sheet.sheet_name;
-  document.getElementById('editFmsSheetId').value = sheet.sheet_id;
-  document.getElementById('editFmsHeaderRow').value = sheet.header_row;
-  document.getElementById('fmsEditErr').style.display='none';
-
-  fmsSteps = steps.map(s => ({
-    stepName: s.stepName || s.step_name || '',
-    doers: (s.doers||[]).map(d => {
-      // Doers stored as integer user IDs
-      if (typeof d === 'number') return d;
-      if (typeof d === 'object' && d.id) return parseInt(d.id);
-      return parseInt(d);
-    }).filter(n => !isNaN(n)),
-    planCol:        s.planCol        || s.plan_col        || '',
-    actualCol:      s.actualCol      || s.actual_col      || '',
-    extraInput:     s.extraInput     || s.extra_input     || 'no',
-    extraRows:      (s.extraRows||[]).map(r=>({
-      col_letter: r.col_letter||r.colLetter||'',
-      field_type: r.field_type||'text',
-      label: r.label||r.row_label||r.col_letter||'',
-      dropdown_options: r.dropdown_options||''
-    })),
-    showCols:       Array.isArray(s.showCols) ? s.showCols : [],
-    delayReasonCol: s.delayReasonCol || s.delay_reason_col || '',
-    doerNameCol:    s.doerNameCol    || s.doer_name_col    || ''
-  }));
-
-  fmsDeleteMode = false;
-  fmsDupMode = false;
-  document.getElementById('editFmsDeleteModeBtn').textContent = '🗑 Select to Delete';
-  document.getElementById('fmsConfirmDeleteBtn').style.display='none';
-  const dupBtn = document.getElementById('editFmsDupModeBtn');
-  const dupConfBtn = document.getElementById('editFmsDupConfirmBtn');
-  if (dupBtn) dupBtn.textContent = '📋 Duplicate';
-  if (dupConfBtn) dupConfBtn.style.display = 'none';
-
-  // Open modal first — show loading
+  // Open modal immediately with loading state
   document.getElementById('fmsEditModal').classList.add('open');
   const container = document.getElementById('fmsEditStepsContainer');
-  container.innerHTML = `<div style="text-align:center;padding:20px;color:#64748b">⏳ Loading headers...</div>`;
+  container.innerHTML = `<div style="text-align:center;padding:30px;color:#64748b">⏳ Loading FMS data...</div>`;
+  document.getElementById('fmsEditErr').style.display = 'none';
 
-  // Fetch headers
-  fmsSheetHeaders = [];
   try {
-    const payload = { sheetId: sheet.sheet_id, sheetName: sheet.sheet_name, headerRow: sheet.header_row };
-    console.log('Fetching headers:', payload);
-    const hRes = await api('/api/fms/fetch-headers','POST', payload);
-    console.log('Headers response:', hRes);
-    fmsSheetHeaders = hRes.headers || [];
-    if (fmsSheetHeaders.length) showToast(`✅ ${fmsSheetHeaders.length} headers loaded!`);
-    else showToast(`⚠️ ${hRes.error || 'No headers found'}`, 'error');
-  } catch(e) {
-    console.error('Headers fetch error:', e);
-    showToast('⚠️ Headers fetch failed','error');
-  }
+    // Load users + FMS data in parallel
+    const [usersRes, data] = await Promise.all([
+      api('/api/users'),
+      api(`/api/fms/${fmsActiveId}`)
+    ]);
+    fmsAllUsers = Array.isArray(usersRes) ? usersRes : [];
 
-  // Render steps with or without headers
-  container.innerHTML = '';
-  fmsSteps.forEach((_,i) => appendFMSStepBox(i, 'fmsEditStepsContainer'));
-  updateEditStepNav();
+    if (!data || data.error) {
+      container.innerHTML = `<div style="color:#ef4444;padding:20px">⚠️ ${data?.error || 'FMS load failed'}</div>`;
+      return;
+    }
+
+    const sheet = data.sheet || {};
+    const steps = Array.isArray(data.steps) ? data.steps : [];
+
+    document.getElementById('editFmsFmsName').value  = sheet.fms_name  || sheet.sheet_name || '';
+    document.getElementById('editFmsSheetName').value = sheet.sheet_name || '';
+    document.getElementById('editFmsSheetId').value   = sheet.sheet_id   || '';
+    document.getElementById('editFmsHeaderRow').value = sheet.header_row || 1;
+
+    fmsSteps = steps.map(s => ({
+      stepName: s.stepName || s.step_name || '',
+      doers: (s.doers||[]).map(d => {
+        if (typeof d === 'number') return d;
+        if (typeof d === 'object' && d.id) return parseInt(d.id);
+        return parseInt(d);
+      }).filter(n => !isNaN(n)),
+      planCol:        s.planCol        || s.plan_col        || '',
+      actualCol:      s.actualCol      || s.actual_col      || '',
+      extraInput:     s.extraInput     || s.extra_input     || 'no',
+      extraRows:      (s.extraRows||[]).map(r => ({
+        col_letter: r.col_letter || r.colLetter || '',
+        field_type: r.field_type || 'text',
+        label:      r.label || r.row_label || r.col_letter || '',
+        dropdown_options: r.dropdown_options || ''
+      })),
+      showCols:       Array.isArray(s.showCols) ? s.showCols : [],
+      delayReasonCol: s.delayReasonCol || s.delay_reason_col || '',
+      doerNameCol:    s.doerNameCol    || s.doer_name_col    || ''
+    }));
+
+    fmsDeleteMode = false;
+    fmsDupMode = false;
+    const delBtn = document.getElementById('editFmsDeleteModeBtn');
+    const delCfm = document.getElementById('fmsConfirmDeleteBtn');
+    if (delBtn) delBtn.textContent = '🗑 Select to Delete';
+    if (delCfm) delCfm.style.display = 'none';
+
+    // Fetch headers
+    container.innerHTML = `<div style="text-align:center;padding:20px;color:#64748b">⏳ Loading column headers...</div>`;
+    fmsSheetHeaders = [];
+    try {
+      const hRes = await api('/api/fms/fetch-headers', 'POST', {
+        sheetId: sheet.sheet_id,
+        sheetName: sheet.sheet_name,
+        headerRow: sheet.header_row
+      });
+      fmsSheetHeaders = (hRes && hRes.headers) ? hRes.headers : [];
+      if (fmsSheetHeaders.length) showToast(`✅ ${fmsSheetHeaders.length} columns loaded`);
+      else showToast('⚠️ No headers found — text input mode mein khulega', 'error');
+    } catch(e) {
+      showToast('⚠️ Headers load failed — text input mode mein khulega', 'error');
+    }
+
+    // Render step boxes
+    container.innerHTML = '';
+    if (fmsSteps.length === 0) {
+      container.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px">No steps configured. Add a step below.</div>`;
+    } else {
+      fmsSteps.forEach((_, i) => appendFMSStepBox(i, 'fmsEditStepsContainer'));
+    }
+    updateEditStepNav();
+
+  } catch(err) {
+    container.innerHTML = `<div style="color:#ef4444;padding:20px">⚠️ Error: ${err.message}</div>`;
+    showToast('Edit FMS load failed: ' + err.message, 'error');
+  }
 }
 
 function updateEditStepNav() {
