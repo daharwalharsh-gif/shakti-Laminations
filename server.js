@@ -1639,6 +1639,23 @@ function extractSheetId(raw) {
   return m ? m[1] : raw.trim();
 }
 
+// Helper: convert 0-based column index to letter(s) A, B, ..., Z, AA, AB...
+function idxToColLetter(idx) {
+  let letter = '';
+  let n = idx + 1; // 1-based
+  while (n > 0) {
+    n--;
+    letter = String.fromCharCode(65 + (n % 26)) + letter;
+    n = Math.floor(n / 26);
+  }
+  return letter;
+}
+
+// Helper: convert header string array to [{col, name, index}] objects
+function headersToObjects(arr) {
+  return arr.map((name, i) => ({ col: idxToColLetter(i), name: name || `Col_${idxToColLetter(i)}`, index: i }));
+}
+
 // Helper: ensure FMS_Config tab exists in main spreadsheet
 async function ensureFMSConfigTab(d) {
   try {
@@ -1694,11 +1711,11 @@ app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => {
       range: `${sheetName}!${rowNum}:${rowNum}`
     }));
 
-    const headers = (response.data.values && response.data.values[0]) ? response.data.values[0] : [];
-    if (!headers.length)
+    const rawHeaders = (response.data.values && response.data.values[0]) ? response.data.values[0] : [];
+    if (!rawHeaders.length)
       return res.json({ headers: [], error: 'No headers found — sheet tab name ya row number check karo' });
 
-    res.json({ headers });
+    res.json({ headers: headersToObjects(rawHeaders) });
   } catch(err) {
     let msg = err.message || 'Unknown error';
     if (msg.includes('403') || msg.toLowerCase().includes('forbidden'))
@@ -1791,12 +1808,12 @@ app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => {
     const response = await withRetry(() => d.sheets.spreadsheets.values.get({
       spreadsheetId, range: `${row.sheet_name}!${headerRow}:${headerRow}`
     }));
-    const headers = response.data.values?.[0] || [];
+    const rawHeaders = response.data.values?.[0] || [];
     const dataRes = await withRetry(() => d.sheets.spreadsheets.values.get({
       spreadsheetId, range: `${row.sheet_name}!A:Z`
     }));
     const totalRows = Math.max(0, (dataRes.data.values?.length || 0) - headerRow);
-    res.json({ success: true, headers, totalRows, sample: [] });
+    res.json({ success: true, headers: headersToObjects(rawHeaders), totalRows, sample: [] });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1896,9 +1913,9 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
       filtered = objects.filter(r => !r[headerName] || String(r[headerName]).trim() === '');
     }
 
-    // Apply showCols filter
-    const showCols = (step.showCols || []).filter(Boolean);
-    const visibleHeaders = showCols.length > 0 ? headers.filter(h => showCols.includes(h)) : headers;
+    // Apply showCols filter — stored as array of column indices
+    const showColsIdx = (step.showCols || []).map(Number).filter(n => !isNaN(n));
+    const visibleHeaders = showColsIdx.length > 0 ? headers.filter((h,i) => showColsIdx.includes(i)) : headers;
 
     res.json({ rows: filtered, headers: visibleHeaders, total: filtered.length, allHeaders: headers });
   } catch(err) {
