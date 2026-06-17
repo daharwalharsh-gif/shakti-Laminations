@@ -263,6 +263,8 @@ tbody tr:last-child td{border-bottom:none;}
 .fms-train-scroll{display:flex;align-items:flex-end;gap:6px;padding:0 30px 14px;width:max-content;animation:trainScroll var(--train-dur,18s) linear infinite;}
 .fms-train-scroll:hover{animation-play-state:paused;}
 @keyframes trainScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+button:disabled{opacity:.65;cursor:not-allowed !important;}
 .fms-train-engine{flex-shrink:0;background:linear-gradient(135deg,#1e293b,#334155);border:2px solid #3b82f6;border-radius:10px 4px 4px 10px;padding:14px 18px;color:#fff;min-width:80px;text-align:center;font-size:24px;display:flex;flex-direction:column;align-items:center;position:relative;}
 .fms-train-engine::before,.fms-coach::before{content:'⬤';position:absolute;bottom:-14px;left:12px;color:#64748b;font-size:9px;}
 .fms-train-engine::after,.fms-coach::after{content:'⬤';position:absolute;bottom:-14px;right:12px;color:#64748b;font-size:9px;}
@@ -3047,7 +3049,8 @@ async function saveChecklist() {
   if (!desc) { err.textContent='Task name is required'; err.style.display='block'; return; }
 
   const btn = document.getElementById('cGenerateBtn');
-  btn.disabled=true; btn.textContent='Generating…';
+  btn.disabled=true;
+  btn.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation:spin .8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Submitting...</span>';
 
   // Get user's week_off to skip those days
   const allUsers = await api('/api/users');
