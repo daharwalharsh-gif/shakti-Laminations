@@ -302,9 +302,180 @@ tbody tr:last-child td{border-bottom:none;}
 .flat-tasks-table{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow-x:auto;}
 .bulk-section{margin-top:20px;padding-top:16px;border-top:1px solid #f1f5f9;}
 .file-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
+
+/* ══════════════════════════════════════
+   MOBILE BOTTOM NAV
+══════════════════════════════════════ */
+.mobile-bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:#0f172a;z-index:200;
+  padding:0 0 env(safe-area-inset-bottom,0);
+  box-shadow:0 -2px 16px rgba(0,0,0,.25);
+}
+.mobile-nav-inner{display:flex;align-items:stretch;}
+.mob-nav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:10px 4px 8px;
+  cursor:pointer;position:relative;
+  color:#64748b;transition:color .2s;border:none;background:none;
+  font-family:'Inter',sans-serif;
+}
+.mob-nav-item.active{color:#60a5fa;}
+.mob-nav-item svg{width:22px;height:22px;margin-bottom:3px;}
+.mob-nav-label{font-size:10px;font-weight:600;letter-spacing:.2px;}
+.mob-nav-badge{
+  position:absolute;top:7px;right:calc(50% - 18px);
+  background:#ef4444;color:#fff;border-radius:50%;
+  width:15px;height:15px;font-size:9px;font-weight:700;
+  display:none;align-items:center;justify-content:center;
+}
+.mob-nav-badge.show{display:flex;}
+
+/* ══════════════════════════════════════
+   MOBILE RESPONSIVE
+══════════════════════════════════════ */
+@media(max-width:768px){
+  /* Hide desktop sidebar, show bottom nav */
+  .sidebar{display:none !important;}
+  .mobile-bottom-nav{display:block;}
+  .main{margin-left:0 !important;padding-bottom:70px;}
+
+  /* Topbar */
+  .topbar{padding:0 14px;height:52px;}
+  .topbar-title{font-size:15px;}
+
+  /* Pages */
+  .page{padding:14px 12px;}
+
+  /* Dashboard overview cards — 2 per row on mobile */
+  .overview-cards{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .ov-card{padding:14px 14px;}
+  .ov-card .label{font-size:12px;}
+  .ov-card .number{font-size:26px;}
+
+  /* Dashboard bottom — single column */
+  .dash-bottom{grid-template-columns:1fr;gap:12px;}
+  .chart-card{order:-1;}
+  .chart-wrap{height:160px;}
+
+  /* Page headers */
+  .page-header{flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .page-header h2{font-size:17px;}
+  .dash-topbar{flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .dash-topbar h2{font-size:17px;}
+  .dash-topbar-btns{flex-wrap:wrap;gap:6px;}
+  .dash-topbar-btns .btn{font-size:11px;padding:6px 10px;}
+
+  /* Tables → horizontal scroll */
+  table{font-size:12px;}
+  thead th{padding:8px 10px;font-size:10px;}
+  tbody td{padding:8px 10px;font-size:12px;}
+  .flat-tasks-table{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  /* User task blocks */
+  .utb-header{padding:12px 14px;}
+  .utb-name{font-size:13px;}
+  .utb-actions .btn{font-size:11px;padding:5px 8px;}
+
+  /* Modals — slide up from bottom on mobile */
+  .modal-overlay{align-items:flex-end;}
+  .modal{
+    width:100% !important;max-width:100% !important;
+    border-radius:20px 20px 0 0;
+    padding:20px 18px;
+    max-height:90vh;
+    margin:0;
+  }
+  .modal h3{font-size:15px;margin-bottom:14px;}
+
+  /* Form rows → single column on mobile */
+  .form-row{grid-template-columns:1fr !important;}
+  .form-group{margin-bottom:12px;}
+  .form-group input,.form-group select,.form-group textarea{
+    font-size:16px; /* prevents iOS zoom */
+    padding:10px 12px;
+  }
+
+  /* Buttons */
+  .btn{font-size:12px;padding:8px 12px;}
+  .btn-sm{font-size:11px;padding:5px 9px;}
+
+  /* Profile */
+  .profile-card{padding:18px;max-width:100%;}
+
+  /* MIS header */
+  .mis-header{gap:8px;}
+  .mis-header .btn{font-size:11px;padding:6px 10px;}
+
+  /* Approvals tabs */
+  .tab-group{overflow-x:auto;}
+  .tab{white-space:nowrap;font-size:11px;}
+
+  /* File upload row */
+  .file-row{flex-wrap:wrap;}
+
+  /* Action buttons — smaller on mobile */
+  .action-btn{padding:4px 8px;font-size:11px;}
+
+  /* MIS table */
+  .mis-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  /* Users grid */
+  .users-grid{overflow-x:auto;}
+
+  /* Topbar right buttons */
+  .topbar-right .btn{font-size:11px;padding:6px 10px;}
+
+  /* FMS train on mobile */
+  .fms-train-track{padding:16px 0 28px;}
+  .fms-coach{min-width:130px;}
+
+  /* Toast bottom offset */
+  #toast{bottom:80px !important;}
+}
+
+@media(max-width:400px){
+  .overview-cards{grid-template-columns:1fr;}
+  .ov-card .number{font-size:28px;}
+  .page{padding:12px 10px;}
+}
 </style>
 </head>
 <body>
+
+<!-- ══════════════════════════════════════
+     MOBILE BOTTOM NAV
+══════════════════════════════════════ -->
+<nav class="mobile-bottom-nav" id="mobileBottomNav">
+  <div class="mobile-nav-inner">
+    <button class="mob-nav-item active" id="mob-dashboard" onclick="navigate('dashboard',this);setMobActive(this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span class="mob-nav-label">Dashboard</span>
+    </button>
+    <button class="mob-nav-item" id="mob-alltasks" onclick="navigate('alltasks',this);setMobActive(this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span class="mob-nav-label">Tasks</span>
+    </button>
+    <button class="mob-nav-item" id="mob-approvals" onclick="navigate('approvals',this);setMobActive(this)" style="position:relative">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="mob-nav-label">Approvals</span>
+      <span class="mob-nav-badge" id="mobApprovalBadge">0</span>
+    </button>
+    <button class="mob-nav-item" id="mob-users" style="display:none" onclick="navigate('users',this);setMobActive(this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <span class="mob-nav-label">Users</span>
+    </button>
+    <button class="mob-nav-item" id="mob-mis" style="display:none" onclick="navigate('mis',this);setMobActive(this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      <span class="mob-nav-label">MIS</span>
+    </button>
+    <button class="mob-nav-item" id="mob-profile" onclick="navigate('profile',this);setMobActive(this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      <span class="mob-nav-label">Profile</span>
+    </button>
+  </div>
+</nav>
 
 <!-- ══════════════════════════════════════
      SIDEBAR
@@ -1698,17 +1869,16 @@ async function init() {
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('nav-fms').style.display = 'flex';
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
+      // Mobile nav
+      document.getElementById('mob-users').style.display = 'flex';
+      document.getElementById('mob-mis').style.display = 'flex';
     }
     if (ME.role === 'hod') {
-      // HOD ko MIS dikhta hai (apne department ka)
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('setPlanBtn').style.display = 'inline-flex';
+      document.getElementById('mob-mis').style.display = 'flex';
     }
-    if (ME.role === 'pc') {
-      // PC: can view all tasks + approve, but cannot edit/delete
-      // Nav items same as employee (dashboard, alltasks, approvals, profile, fms-tasks)
-    }
-    // Records tab — Admin, HOD aur PC teeno ko dikhta hai (shared single source of truth)
+    if (ME.role === 'pc') {}
     if (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc') {
       document.getElementById('nav-records').style.display = 'flex';
     }
@@ -1793,8 +1963,12 @@ function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
-  if (el) el.classList.add('active');
+  if (el && el.classList.contains('nav-item')) el.classList.add('active');
   document.getElementById('topbarTitle').textContent = pageTitles[page] || page;
+  // Sync mobile bottom nav active state
+  const mobMap = {dashboard:'mob-dashboard',alltasks:'mob-alltasks',approvals:'mob-approvals',users:'mob-users',mis:'mob-mis',profile:'mob-profile'};
+  document.querySelectorAll('.mob-nav-item').forEach(b=>b.classList.remove('active'));
+  if (mobMap[page]) { const mb=document.getElementById(mobMap[page]); if(mb) mb.classList.add('active'); }
   if (page==='dashboard') loadDashboard();
   if (page==='alltasks') loadAllTasks();
   if (page==='users') loadUsers();
@@ -3153,14 +3327,22 @@ async function uploadUsersCSV() {
 async function loadApprovalBadge() {
   const d = await api('/api/approvals/count');
   const badge = document.getElementById('approvalBadge');
+  const mobBadge = document.getElementById('mobApprovalBadge');
   if (d.count > 0) {
     badge.textContent = d.count;
     badge.style.display = 'flex';
+    mobBadge.textContent = d.count;
+    mobBadge.classList.add('show');
   } else {
     badge.style.display = 'none';
+    mobBadge.classList.remove('show');
   }
-  // Also refresh transfer badge
   loadTransferBadge();
+}
+
+function setMobActive(el) {
+  document.querySelectorAll('.mob-nav-item').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
 }
 
 function switchApprovalTab(tab, el) {
