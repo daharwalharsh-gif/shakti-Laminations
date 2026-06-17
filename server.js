@@ -20,6 +20,29 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ══════════════════════════════════════════════════════
 // GOOGLE SHEETS DB LAYER
 // ══════════════════════════════════════════════════════
+// Retry wrapper for Google Sheets API calls (handles quota exceeded)
+async function withRetry(fn, maxRetries = 4) {
+  let delay = 2000;
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isQuota = err.message && (
+        err.message.includes('Quota exceeded') ||
+        err.message.includes('RESOURCE_EXHAUSTED') ||
+        err.message.includes('rateLimitExceeded') ||
+        (err.code === 429)
+      );
+      if (isQuota && i < maxRetries) {
+        await new Promise(r => setTimeout(r, delay));
+        delay *= 2;
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 class SheetDB {
   constructor(sheets, spreadsheetId) {
     this.sheets = sheets;
@@ -27,18 +50,18 @@ class SheetDB {
   }
 
   async getHeaders(tabName) {
-    const res = await this.sheets.spreadsheets.values.get({
+    const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!1:1`
-    });
+    }));
     return (res.data.values && res.data.values[0]) ? res.data.values[0] : [];
   }
 
   async findAll(tabName) {
-    const res = await this.sheets.spreadsheets.values.get({
+    const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A:Z`
-    });
+    }));
     const rows = res.data.values || [];
     if (rows.length < 2) return [];
     const headers = rows[0];
@@ -80,26 +103,25 @@ class SheetDB {
     // Build row in header order
     const rowValues = headers.map(h => (data[h] !== undefined && data[h] !== null) ? String(data[h]) : '');
 
-    await this.sheets.spreadsheets.values.append({
+    await withRetry(() => this.sheets.spreadsheets.values.append({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A:A`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [rowValues] }
-    });
+    }));
 
     return data;
   }
 
   async _findRowIndex(tabName, id) {
-    const res = await this.sheets.spreadsheets.values.get({
+    const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A:A`
-    });
+    }));
     const col = res.data.values || [];
-    // col[0] is header row, data starts at col[1]
     for (let i = 1; i < col.length; i++) {
       if (String((col[i] && col[i][0]) || '').trim() === String(id).trim()) {
-        return i + 1; // 1-based sheet row index (row 1 = header, row 2 = first data row)
+        return i + 1;
       }
     }
     return -1;
@@ -110,25 +132,23 @@ class SheetDB {
     const sheetRowNum = await this._findRowIndex(tabName, id);
     if (sheetRowNum < 0) throw new Error(`Row with id=${id} not found in ${tabName}`);
 
-    // Get current row values
-    const res = await this.sheets.spreadsheets.values.get({
+    const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A${sheetRowNum}:Z${sheetRowNum}`
-    });
+    }));
     const currentVals = (res.data.values && res.data.values[0]) ? res.data.values[0] : [];
 
-    // Merge updates
     const updatedRow = headers.map((h, i) => {
       if (data[h] !== undefined && data[h] !== null) return String(data[h]);
       return currentVals[i] !== undefined ? currentVals[i] : '';
     });
 
-    await this.sheets.spreadsheets.values.update({
+    await withRetry(() => this.sheets.spreadsheets.values.update({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A${sheetRowNum}:${String.fromCharCode(64 + headers.length)}${sheetRowNum}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [updatedRow] }
-    });
+    }));
 
     // Return merged object
     const obj = {};
@@ -190,31 +210,29 @@ async function deleteRow(tabName, id) {
   const sheetsApi = db.sheets;
   const spreadsheetId = db.spreadsheetId;
 
-  // Get sheetId for the tab
-  const metaRes = await sheetsApi.spreadsheets.get({
+  const metaRes = await withRetry(() => sheetsApi.spreadsheets.get({
     spreadsheetId,
     fields: 'sheets(properties(title,sheetId))'
-  });
+  }));
   const sheetMeta = (metaRes.data.sheets || []).find(s => s.properties.title === tabName);
   if (!sheetMeta) throw new Error(`Tab ${tabName} not found`);
   const sheetId = sheetMeta.properties.sheetId;
 
-  // Find row
-  const colRes = await sheetsApi.spreadsheets.values.get({
+  const colRes = await withRetry(() => sheetsApi.spreadsheets.values.get({
     spreadsheetId,
     range: `${tabName}!A:A`
-  });
+  }));
   const col = colRes.data.values || [];
   let sheetRowNum = -1;
   for (let i = 1; i < col.length; i++) {
     if (String((col[i] && col[i][0]) || '').trim() === String(id).trim()) {
-      sheetRowNum = i + 1; // 1-based
+      sheetRowNum = i + 1;
       break;
     }
   }
   if (sheetRowNum < 0) throw new Error(`Row with id=${id} not found in ${tabName}`);
 
-  await sheetsApi.spreadsheets.batchUpdate({
+  await withRetry(() => sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
       requests: [{
@@ -228,7 +246,7 @@ async function deleteRow(tabName, id) {
         }
       }]
     }
-  });
+  }));
 }
 
 // ══════════════════════════════════════════════════════
@@ -804,23 +822,44 @@ app.put('/api/tasks/:id/edit', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/tasks/:id', requireAuth, requireAdmin, async (req, res) => {
+// ── Specific /api/tasks/* routes MUST come before the general /:id routes ──
+
+app.get('/api/tasks/user/:userId', requireAuth, async (req, res) => {
   try {
-    const { type, skipCompleted } = req.query;
+    const { type } = req.query;
     const tabName = getTabName(type || 'delegation');
-    if (skipCompleted === '1' || skipCompleted === 'true') {
-      const task = await db.findOne(tabName, { id: req.params.id });
-      if (task && task.status === 'completed')
-        return res.status(400).json({ error: 'Completed tasks cannot be deleted in bulk', skipped: true });
-    }
-    await deleteRow(tabName, req.params.id);
-    res.json({ success: true });
+    const allUsers = await db.findAll('Users');
+    const userMap = {};
+    for (const u of allUsers) userMap[String(u.id)] = u;
+
+    const allTasks = await db.findAll(tabName);
+    const tasks = allTasks
+      .filter(t => String(t.assigned_to) === String(req.params.userId))
+      .map(t => ({
+        id: parseInt(t.id),
+        type: type || 'delegation',
+        description: t.description,
+        status: t.status,
+        assigned_to: parseInt(t.assigned_to),
+        assigned_by: parseInt(t.assigned_by),
+        priority: t.priority || 'low',
+        approval: (type || 'delegation') === 'delegation' ? (t.approval || 'no') : 'no',
+        waiting_approval: (type || 'delegation') === 'delegation' ? (parseInt(t.waiting_approval) || 0) : 0,
+        remarks: t.remarks || '',
+        due_date: t.due_date || '',
+        assigned_on: t.created_at ? t.created_at.split('T')[0].split(' ')[0] : '',
+        frequency: t.frequency || '',
+        assignedToName: userMap[String(t.assigned_to)]?.name || '',
+        assignedByName: userMap[String(t.assigned_by)]?.name || ''
+      }))
+      .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+    res.json({ tasks });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/tasks/user/:userId', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { type } = req.query;
+    const type = req.body?.type || req.query.type;
     const tabName = getTabName(type || 'delegation');
     const tasks = await db.findWhere(tabName, { assigned_to: req.params.userId });
     for (const t of tasks) {
@@ -833,7 +872,7 @@ app.delete('/api/tasks/user/:userId', requireAuth, requireAdmin, async (req, res
 app.put('/api/tasks/user/:userId/transfer-today', requireAuth, requireAdmin, async (req, res) => {
   try {
     const todayStr = today();
-    const { type } = req.query;
+    const type = req.body?.type || req.query.type;
     const tabName = getTabName(type || 'delegation');
     const tasks = await db.findWhere(tabName, { assigned_to: req.params.userId, status: 'pending' });
     for (const t of tasks) await db.update(tabName, t.id, { due_date: todayStr });
@@ -874,6 +913,23 @@ app.post('/api/tasks/checklist-year-delete', requireAuth, requireAdmin, async (r
     let deleted = 0;
     for (const t of tasks) { await deleteRow('Checklist_Tasks', t.id); deleted++; }
     res.json({ success: true, deleted });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── General /:id routes AFTER all specific routes ──
+
+app.delete('/api/tasks/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const type = req.body?.type || req.query.type;
+    const skipCompleted = req.body?.skipCompleted || req.query.skipCompleted;
+    const tabName = getTabName(type || 'delegation');
+    if (skipCompleted === '1' || skipCompleted === 'true' || skipCompleted === true) {
+      const task = await db.findOne(tabName, { id: req.params.id });
+      if (task && task.status === 'completed')
+        return res.status(400).json({ error: 'Completed tasks cannot be deleted in bulk', skipped: true });
+    }
+    await deleteRow(tabName, req.params.id);
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1363,6 +1419,25 @@ app.post('/api/users/bulk', requireAuth, requireAdmin, async (req, res) => {
 // ══════════════════════════════════════════════════════
 // PROFILE
 // ══════════════════════════════════════════════════════
+app.get('/api/profile', requireAuth, async (req, res) => {
+  try {
+    const user = await db.findOne('Users', { id: String(req.session.userId) });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({
+      id: parseInt(user.id),
+      name: user.name,
+      email: user.email,
+      notification_email: user.notification_email || '',
+      role: user.role,
+      phone: user.phone || '',
+      department: user.department || '',
+      week_off: user.week_off || '',
+      extra_off: user.extra_off || '',
+      profile_image: user.profile_image || ''
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.put('/api/profile', requireAuth, async (req, res) => {
   try {
     const uid = req.session.userId;
@@ -1770,13 +1845,12 @@ async function seedAdminIfNeeded() {
   try {
     const sheetsApi = await getSheetsClient();
     // Verify connection by reading spreadsheet metadata
-    await sheetsApi.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'spreadsheetId' });
+    await withRetry(() => sheetsApi.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'spreadsheetId' }));
     db = new SheetDB(sheetsApi, SHEET_ID);
-    // Override delete to use proper method
     db.delete = async (tabName, id) => deleteRow(tabName, id);
     console.log('  Google Sheets DB connected');
 
-    await seedAdminIfNeeded();
+    try { await seedAdminIfNeeded(); } catch(e) { console.log('  Seed skipped (will retry on next start):', e.message); }
 
     // SMTP verify (non-blocking)
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -1795,7 +1869,13 @@ async function seedAdminIfNeeded() {
       console.log(`  Login: admin@test.com / admin123\n`);
     });
   } catch (err) {
-    console.error('  Startup failed:', err.message);
-    process.exit(1);
+    console.error('  Startup error:', err.message);
+    // Still start server so app is reachable; DB calls will retry on demand
+    if (!app.listening) {
+      app.listen(PORT, () => {
+        console.log(`\n  Task Manager (degraded): http://localhost:${PORT}`);
+        console.log('  Warning: Google Sheets connection failed — retrying on first request\n');
+      });
+    }
   }
 })();
