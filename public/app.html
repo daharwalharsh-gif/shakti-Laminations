@@ -480,6 +480,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
       <span class="mob-nav-label">Tasks</span>
     </button>
+    <button class="mob-nav-item" id="mob-fms-tasks" onclick="navigate('fms-tasks',this);setMobActive(this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M3 6h18M3 18h18"/></svg>
+      <span class="mob-nav-label">FMS</span>
+    </button>
     <button class="mob-nav-item" id="mob-approvals" onclick="navigate('approvals',this);setMobActive(this)" style="position:relative">
       <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       <span class="mob-nav-label">Approvals</span>
@@ -1988,7 +1992,7 @@ function navigate(page, el) {
   if (el && el.classList.contains('nav-item')) el.classList.add('active');
   document.getElementById('topbarTitle').textContent = pageTitles[page] || page;
   // Sync mobile bottom nav active state
-  const mobMap = {dashboard:'mob-dashboard',alltasks:'mob-alltasks',approvals:'mob-approvals',users:'mob-users',mis:'mob-mis',profile:'mob-profile'};
+  const mobMap = {dashboard:'mob-dashboard',alltasks:'mob-alltasks','fms-tasks':'mob-fms-tasks',approvals:'mob-approvals',users:'mob-users',mis:'mob-mis',profile:'mob-profile'};
   document.querySelectorAll('.mob-nav-item').forEach(b=>b.classList.remove('active'));
   if (mobMap[page]) { const mb=document.getElementById(mobMap[page]); if(mb) mb.classList.add('active'); }
   if (page==='dashboard') loadDashboard();

@@ -21,8 +21,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // GOOGLE SHEETS DB LAYER
 // ══════════════════════════════════════════════════════
 // Retry wrapper for Google Sheets API calls (handles quota exceeded)
-async function withRetry(fn, maxRetries = 4) {
-  let delay = 2000;
+async function withRetry(fn, maxRetries = 2) {
+  let delay = 500;
   for (let i = 0; i <= maxRetries; i++) {
     try {
       return await fn();
