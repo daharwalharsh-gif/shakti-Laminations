@@ -4735,11 +4735,11 @@ async function openEditFMS() {
 
     fmsSteps = steps.map(s => ({
       stepName: s.stepName || s.step_name || '',
-      doers: (s.doers||[]).map(d => {
+      doers: (s.doers||[]).filter(d => d != null).map(d => {
         if (typeof d === 'number') return d;
-        if (typeof d === 'object' && d.id) return parseInt(d.id);
+        if (d && typeof d === 'object') return parseInt(d.id || d);
         return parseInt(d);
-      }).filter(n => !isNaN(n)),
+      }).filter(n => !isNaN(n) && n > 0),
       planCol:        s.planCol        || s.plan_col        || '',
       actualCol:      s.actualCol      || s.actual_col      || '',
       extraInput:     s.extraInput     || s.extra_input     || 'no',
