@@ -420,6 +420,7 @@ function reminderScheduler() {
 // MIDDLEWARE
 // ══════════════════════════════════════════════════════
 function requireAuth(req, res, next) {
+  if (!db) return res.status(503).json({ error: 'Server abhi start ho raha hai — please 5 seconds baad retry karein' });
   const token = req.cookies?.token || req.headers['authorization']?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
   try {
@@ -455,6 +456,7 @@ function parseIntSafe(v) { const n = parseInt(v); return isNaN(n) ? 0 : n; }
 // ══════════════════════════════════════════════════════
 app.post('/api/login', async (req, res) => {
   try {
+    if (!db) return res.status(503).json({ error: 'Server start ho raha hai — please retry karein' });
     const { email, password } = req.body;
     const user = await db.findOne('Users', { email });
     if (!user || user.password !== password)
@@ -1188,13 +1190,69 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
 });
 
 app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
-  // FMS routes not implemented in Sheets version
-  res.json([]);
+  try {
+    const d = await getDB();
+    let fmsList = [];
+    try { await ensureFMSConfigTab(d); fmsList = await d.findAll('FMS_Config'); } catch(e) { return res.json([]); }
+    if (!fmsList.length) return res.json([]);
+
+    const todayStr = today();
+    const result = [];
+
+    for (const fmsRow of fmsList) {
+      const fms = parseFMSRow(fmsRow);
+      if (!fms.sheet_id || !fms.sheet_name || !fms.steps.length) continue;
+      try {
+        const spreadsheetId = extractSheetId(fms.sheet_id);
+        const resp = await withRetry(() => d.sheets.spreadsheets.values.get({
+          spreadsheetId, range: `${fms.sheet_name}!A:Z`
+        }));
+        const allRows = resp.data.values || [];
+        if (allRows.length < fms.header_row) continue;
+        const headers = allRows[fms.header_row - 1] || [];
+        const dataRows = allRows.slice(fms.header_row);
+
+        const stepRows = fms.steps.map((step, si) => {
+          const aIdx = step.actualCol ? step.actualCol.toUpperCase().charCodeAt(0)-65 : -1;
+          const pIdx = step.planCol   ? step.planCol.toUpperCase().charCodeAt(0)-65   : -1;
+          let pending=0, done=0, late=0;
+          for (const row of dataRows) {
+            const actual = aIdx>=0 ? (row[aIdx]||'').trim() : '';
+            const plan   = pIdx>=0 ? (row[pIdx]||'').trim() : '';
+            if (actual) { done++; } else {
+              pending++;
+              if (plan && plan < todayStr) late++;
+            }
+          }
+          const doerNames = Array.isArray(step.doers) ? step.doers.join(', ') : (step.doers||'');
+          return {
+            stepId: step.id || si+1,
+            stepOrder: si+1,
+            stepName: step.stepName,
+            doers: doerNames,
+            pending, done, late, total: pending+done
+          };
+        });
+        const totalPending = stepRows.reduce((a,s)=>a+s.pending,0);
+        const totalDone    = stepRows.reduce((a,s)=>a+s.done,0);
+        result.push({
+          fmsId: fms.id, fmsName: fms.fms_name, steps: stepRows,
+          totalPending, totalDone,
+          // Frontend-compat fields
+          total: totalPending + totalDone,
+          pending: totalPending,
+          done: totalDone
+        });
+      } catch(e) { console.error('mis/fms error:', fms.fms_name, e.message); }
+    }
+    res.json(result);
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Employee Records ──
 app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res) => {
   try {
+    const db = await getDB();
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
     const isHod = req.session.role === 'hod';
@@ -1305,9 +1363,64 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── FMS Dashboard (stub — not implemented) ──
+// ── FMS Dashboard — aggregate pending rows from all FMS external sheets ──
 app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
-  res.json({ rows: [], pendingCount: 0 });
+  try {
+    const d = await getDB();
+    let fmsList = [];
+    try { await ensureFMSConfigTab(d); fmsList = await d.findAll('FMS_Config'); } catch(e) { return res.json({ rows:[], pendingCount:0 }); }
+    if (!fmsList.length) return res.json({ rows:[], pendingCount:0 });
+
+    const todayStr = today();
+    const pendingRows = [];
+
+    for (const fmsRow of fmsList) {
+      const fms = parseFMSRow(fmsRow);
+      if (!fms.sheet_id || !fms.sheet_name || !fms.steps.length) continue;
+      try {
+        const spreadsheetId = extractSheetId(fms.sheet_id);
+        const resp = await withRetry(() => d.sheets.spreadsheets.values.get({
+          spreadsheetId, range: `${fms.sheet_name}!A:Z`
+        }));
+        const allRows = resp.data.values || [];
+        if (allRows.length < fms.header_row) continue;
+        const headers = allRows[fms.header_row - 1] || [];
+        const dataRows = allRows.slice(fms.header_row);
+
+        fms.steps.forEach((step, si) => {
+          if (!step.actualCol) return;
+          const aIdx = step.actualCol.toUpperCase().charCodeAt(0)-65;
+          const pIdx = step.planCol ? step.planCol.toUpperCase().charCodeAt(0)-65 : -1;
+
+          dataRows.forEach((row, ri) => {
+            const actual = (row[aIdx]||'').trim();
+            if (actual) return; // already done
+            const planVal = pIdx>=0 ? (row[pIdx]||'').trim() : '';
+
+            // Parse plan date
+            let planDate = null;
+            const m1 = planVal.match(/(\d{4}-\d{2}-\d{2})/);
+            const m2 = planVal.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+            if (m1) planDate = m1[1];
+            else if (m2) planDate = `${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+
+            const isLate = planDate ? planDate < todayStr : false;
+            const doerNames = (step.doers||[]).join(', ') || '—';
+
+            pendingRows.push({
+              fmsId: fms.id, fmsName: fms.fms_name,
+              stepId: step.id || si+1, stepName: step.stepName,
+              rowIndex: fms.header_row + ri + 1,
+              doer: doerNames,
+              planValue: planVal, planDate, isLate
+            });
+          });
+        });
+      } catch(e) { console.error('fms-dashboard error:', fms.fms_name, e.message); }
+    }
+
+    res.json({ rows: pendingRows, pendingCount: pendingRows.length });
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 // ══════════════════════════════════════════════════════
@@ -1704,13 +1817,42 @@ app.get('/api/fms-tasks', requireAuth, async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/fms-tasks/:id — single FMS for task view
+// GET /api/fms-tasks/:id — single FMS for task view (enriched with user names)
 app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
   try {
     const d = await getDB();
     const row = await d.findOne('FMS_Config', { id: String(req.params.id) });
     if (!row) return res.status(404).json({ error: 'FMS not found' });
-    res.json(parseFMSRow(row));
+    const fms = parseFMSRow(row);
+    const allUsers = await d.findAll('Users');
+    const userMap = {};
+    for (const u of allUsers) userMap[String(u.id)] = u;
+    const myId = String(req.session.userId);
+
+    // Enrich steps with frontend-expected field names + user objects
+    const enrichedSteps = fms.steps.map((s, si) => {
+      const doerIds = Array.isArray(s.doers) ? s.doers : [];
+      const doerObjs = doerIds.map(uid => {
+        const u = userMap[String(uid)];
+        return u ? { id: parseInt(uid), name: u.name } : { id: parseInt(uid), name: String(uid) };
+      });
+      const isMyStep = req.session.role === 'admin' || doerIds.map(String).includes(myId);
+      return {
+        id: s.id || si+1,
+        step_name: s.stepName,
+        step_order: si+1,
+        doers: doerObjs,
+        isMyStep,
+        planCol: s.planCol || '',
+        actualCol: s.actualCol || '',
+        delayReasonCol: s.delayReasonCol || '',
+        doerNameCol: s.doerNameCol || '',
+        showCols: s.showCols || [],
+        extraInput: s.extraInput || 'no',
+        extraRows: s.extraRows || []
+      };
+    });
+    res.json({ sheet: fms, steps: enrichedSteps });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 

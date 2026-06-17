@@ -3599,7 +3599,7 @@ async function saveProfile() {
 // ══════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════
-async function api(url,method='GET',body=null) {
+async function api(url,method='GET',body=null,_retries=2) {
   const token = localStorage.getItem('authToken');
   const opts={method, headers:{'Content-Type':'application/json'}, credentials:'include'};
   if (token) opts.headers['Authorization'] = 'Bearer ' + token;
@@ -3615,6 +3615,12 @@ async function api(url,method='GET',body=null) {
     localStorage.removeItem('authToken');
     window.location.replace('/');
     return {};
+  }
+  // 503 = server cold-starting, auto-retry up to 2 times with 3s delay
+  if (r.status===503 && _retries>0) {
+    showToast('Server start ho raha hai, retry ho rahi hai...','warning');
+    await new Promise(res=>setTimeout(res,3000));
+    return api(url,method,body,_retries-1);
   }
   try {
     const data = await r.json();
@@ -3644,11 +3650,11 @@ async function logout() {
 
 function showToast(msg,type='success') {
   const t=document.createElement('div');
-  const bg=type==='error'?'#dc2626':'#1e293b';
-  t.style.cssText=`position:fixed;bottom:24px;right:24px;background:${bg};color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.2);animation:fadeIn .3s ease`;
+  const bg=type==='error'?'#dc2626':type==='warning'?'#d97706':'#1e293b';
+  t.style.cssText=`position:fixed;bottom:24px;right:24px;background:${bg};color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.2);animation:fadeIn .3s ease;max-width:320px`;
   t.textContent=msg;
   document.body.appendChild(t);
-  setTimeout(()=>t.remove(),3000);
+  setTimeout(()=>t.remove(),type==='warning'?5000:3000);
 }
 
 // ══════════════════════════════════════════════════════
