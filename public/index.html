@@ -77,7 +77,7 @@
   .logo-img-wrap img {
     width:200px;
     display:block;
-    filter: drop-shadow(0 4px 16px rgba(0,188,212,.25));
+    filter: drop-shadow(0 6px 20px rgba(255,140,0,.35));
     animation: logoFloat 3.5s ease-in-out 1s infinite;
   }
   @keyframes logoFloat {
@@ -219,15 +219,9 @@
   <!-- Logo -->
   <div class="logo-section">
     <div class="logo-img-wrap">
-      <img src="shakti-logo.jpeg" alt="SHPL Logo"
-           onerror="this.style.display='none';document.getElementById('fallbackLogo').style.display='flex'"/>
-      <!-- Fallback if image not found -->
-      <div id="fallbackLogo" style="display:none;width:200px;height:70px;align-items:center;justify-content:center;gap:8px">
-        <div style="width:44px;height:44px;background:linear-gradient(135deg,#00ACC1,#4CAF50);border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:20px">S</div>
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#00BCD4;line-height:1">SHPL</div>
-          <div style="font-size:11px;color:#4CAF50;font-weight:600">Shakti Laminations Pvt. Ltd</div>
-        </div>
+      <div style="width:200px;height:170px;overflow:hidden;display:inline-block;">
+        <img src="/shakti-logo.jpeg" alt="SHPL Logo" style="width:200px;display:block;margin-top:-4px;"
+             onerror="this.parentElement.parentElement.innerHTML='<div id=fallbackLogo style=display:flex;width:200px;height:70px;align-items:center;justify-content:center;gap:8px><div style=width:44px;height:44px;background:linear-gradient(135deg,#ff8c00,#ffa500);border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:20px>S</div><div><div style=font-size:22px;font-weight:800;color:#ff8c00;line-height:1>SHPL</div></div></div>'"/>
       </div>
     </div>
     <div class="logo-tagline">Task Manager</div>
