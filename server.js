@@ -1843,7 +1843,7 @@ app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => {
       spreadsheetId, range: `${row.sheet_name}!A:Z`
     }));
     const totalRows = Math.max(0, (dataRes.data.values?.length || 0) - headerRow);
-    res.json({ success: true, headers: headersToObjects(rawHeaders), totalRows, sample: [] });
+    res.json({ success: true, headers: headersToObjects(rawHeaders), headerRow, totalRows, sample: [] });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 

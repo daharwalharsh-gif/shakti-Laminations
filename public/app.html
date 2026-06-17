@@ -4717,16 +4717,25 @@ async function openEditFMS() {
   document.getElementById('fmsEditErr').style.display='none';
 
   fmsSteps = steps.map(s => ({
-    stepName: s.step_name,
-    doers: (s.doers||[]).map(d=>parseInt(d.user_id)),
-    planCol: s.plan_col||'',
-    actualCol: s.actual_col||'',
-    extraInput: s.extra_input||'no',
-    extraCol: s.extra_col||'',
-    extraRows: (s.extraRows||[]).map(r=>({col_letter:r.col_letter||'', field_type:r.field_type||'text', label:r.row_label||r.label||r.col_letter||'', dropdown_options:r.dropdown_options||''})),
-    showCols: s.show_cols_parsed || [],
-    delayReasonCol: s.delay_reason_col||'',
-    doerNameCol: s.doer_name_col||''
+    stepName: s.stepName || s.step_name || '',
+    doers: (s.doers||[]).map(d => {
+      // Doers stored as integer user IDs
+      if (typeof d === 'number') return d;
+      if (typeof d === 'object' && d.id) return parseInt(d.id);
+      return parseInt(d);
+    }).filter(n => !isNaN(n)),
+    planCol:        s.planCol        || s.plan_col        || '',
+    actualCol:      s.actualCol      || s.actual_col      || '',
+    extraInput:     s.extraInput     || s.extra_input     || 'no',
+    extraRows:      (s.extraRows||[]).map(r=>({
+      col_letter: r.col_letter||r.colLetter||'',
+      field_type: r.field_type||'text',
+      label: r.label||r.row_label||r.col_letter||'',
+      dropdown_options: r.dropdown_options||''
+    })),
+    showCols:       Array.isArray(s.showCols) ? s.showCols : [],
+    delayReasonCol: s.delayReasonCol || s.delay_reason_col || '',
+    doerNameCol:    s.doerNameCol    || s.doer_name_col    || ''
   }));
 
   fmsDeleteMode = false;
@@ -4835,15 +4844,17 @@ async function syncFMSData() {
     return;
   }
 
-  const headerBadges = r.headers.map(h=>
-    `<span style="background:#eff6ff;color:#1d4ed8;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600">${h}</span>`
-  ).join(' ');
+  // headers are now objects {col, name, index} — extract name for display
+  const headerBadges = (r.headers||[]).map(h=>{
+    const label = typeof h === 'object' ? `${h.name} (${h.col})` : String(h);
+    return `<span style="background:#eff6ff;color:#1d4ed8;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600">${label}</span>`;
+  }).join(' ');
 
   syncEl.style.cssText='display:block;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin-top:14px';
   syncEl.innerHTML=`
     <div style="font-weight:600;color:#16a34a;margin-bottom:10px;font-size:14px">✅ Sync Successful!</div>
     <div style="font-size:13px;color:#374151;margin-bottom:6px">
-      📊 Header Row: <strong>${r.headerRow}</strong> &nbsp;·&nbsp; Total Data Rows: <strong>${r.totalRows}</strong>
+      📊 Header Row: <strong>${r.headerRow ?? r.header_row ?? '—'}</strong> &nbsp;·&nbsp; Total Data Rows: <strong>${r.totalRows}</strong>
     </div>
     <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">
       Headers Found (${r.headers.length}):
