@@ -47,141 +47,153 @@ class SheetDB {
   constructor(sheets, spreadsheetId) {
     this.sheets = sheets;
     this.spreadsheetId = spreadsheetId;
+    this._cache = {};       // { tabName: { data:[], ts:0 } }
+    this._hdrCache = {};    // { tabName: string[] }  — headers never change
+    this._sheetIdCache = {}; // { tabName: sheetId }
+    this.TTL = 45000;       // 45 sec cache — keeps quota well under 60 req/min
+  }
+
+  _invalidate(tabName) {
+    delete this._cache[tabName];
   }
 
   async getHeaders(tabName) {
+    if (this._hdrCache[tabName]) return this._hdrCache[tabName];
     const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!1:1`
     }));
-    return (res.data.values && res.data.values[0]) ? res.data.values[0] : [];
+    const headers = (res.data.values && res.data.values[0]) ? res.data.values[0] : [];
+    this._hdrCache[tabName] = headers;
+    return headers;
   }
 
   async findAll(tabName) {
+    const cached = this._cache[tabName];
+    if (cached && (Date.now() - cached.ts) < this.TTL) return cached.data;
+
     const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A:Z`
     }));
     const rows = res.data.values || [];
-    if (rows.length < 2) return [];
-    const headers = rows[0];
-    return rows.slice(1).map(row => {
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
-      return obj;
-    });
+    let data = [];
+    if (rows.length >= 2) {
+      const headers = rows[0];
+      this._hdrCache[tabName] = headers; // also update header cache
+      data = rows.slice(1).map(row => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
+        return obj;
+      });
+    }
+    this._cache[tabName] = { data, ts: Date.now() };
+    return data;
   }
 
   async findWhere(tabName, filter) {
     const all = await this.findAll(tabName);
-    return all.filter(row => {
-      return Object.keys(filter).every(key => {
-        const rowVal = String(row[key] || '').trim();
-        const filterVal = String(filter[key] || '').trim();
-        return rowVal === filterVal;
-      });
-    });
+    return all.filter(row =>
+      Object.keys(filter).every(key =>
+        String(row[key] || '').trim() === String(filter[key] || '').trim()
+      )
+    );
   }
 
   async findOne(tabName, filter) {
-    const results = await this.findWhere(tabName, filter);
-    return results[0] || null;
+    return (await this.findWhere(tabName, filter))[0] || null;
   }
 
   async insert(tabName, data) {
     const headers = await this.getHeaders(tabName);
-    // Auto-increment ID
-    const all = await this.findAll(tabName);
+    const all = await this.findAll(tabName); // uses cache
     let maxId = 0;
-    for (const row of all) {
-      const rid = parseInt(row.id) || 0;
-      if (rid > maxId) maxId = rid;
-    }
-    const newId = maxId + 1;
-    data.id = String(newId);
-
-    // Build row in header order
-    const rowValues = headers.map(h => (data[h] !== undefined && data[h] !== null) ? String(data[h]) : '');
-
+    for (const row of all) { const rid = parseInt(row.id) || 0; if (rid > maxId) maxId = rid; }
+    data.id = String(maxId + 1);
+    const rowValues = headers.map(h => (data[h] != null) ? String(data[h]) : '');
     await withRetry(() => this.sheets.spreadsheets.values.append({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A:A`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [rowValues] }
     }));
-
+    this._invalidate(tabName); // clear cache after write
     return data;
   }
 
   async _findRowIndex(tabName, id) {
+    // Use cached data if available to avoid extra API call
+    const cached = this._cache[tabName];
+    if (cached && (Date.now() - cached.ts) < this.TTL) {
+      const idx = cached.data.findIndex(r => String(r.id || '').trim() === String(id).trim());
+      if (idx >= 0) return idx + 2; // +1 for header row, +1 for 1-based
+    }
     const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A:A`
     }));
     const col = res.data.values || [];
     for (let i = 1; i < col.length; i++) {
-      if (String((col[i] && col[i][0]) || '').trim() === String(id).trim()) {
-        return i + 1;
-      }
+      if (String((col[i] && col[i][0]) || '').trim() === String(id).trim()) return i + 1;
     }
     return -1;
+  }
+
+  async _getSheetId(tabName) {
+    if (this._sheetIdCache[tabName]) return this._sheetIdCache[tabName];
+    const res = await withRetry(() => this.sheets.spreadsheets.get({
+      spreadsheetId: this.spreadsheetId,
+      fields: 'sheets(properties(title,sheetId))'
+    }));
+    for (const s of (res.data.sheets || [])) {
+      this._sheetIdCache[s.properties.title] = s.properties.sheetId;
+    }
+    return this._sheetIdCache[tabName];
   }
 
   async update(tabName, id, data) {
     const headers = await this.getHeaders(tabName);
     const sheetRowNum = await this._findRowIndex(tabName, id);
-    if (sheetRowNum < 0) throw new Error(`Row with id=${id} not found in ${tabName}`);
+    if (sheetRowNum < 0) throw new Error(`Row id=${id} not found in ${tabName}`);
 
+    // Get current row values to merge
     const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A${sheetRowNum}:Z${sheetRowNum}`
     }));
     const currentVals = (res.data.values && res.data.values[0]) ? res.data.values[0] : [];
-
     const updatedRow = headers.map((h, i) => {
       if (data[h] !== undefined && data[h] !== null) return String(data[h]);
       return currentVals[i] !== undefined ? currentVals[i] : '';
     });
-
     await withRetry(() => this.sheets.spreadsheets.values.update({
       spreadsheetId: this.spreadsheetId,
       range: `${tabName}!A${sheetRowNum}:${String.fromCharCode(64 + headers.length)}${sheetRowNum}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [updatedRow] }
     }));
-
-    // Return merged object
+    this._invalidate(tabName); // clear cache after write
     const obj = {};
     headers.forEach((h, i) => { obj[h] = updatedRow[i]; });
     return obj;
   }
 
   async delete(tabName, id) {
-    const res = await this.sheets.spreadsheets.spreadsheets.get({
-      spreadsheetId: this.spreadsheetId,
-      fields: 'sheets(properties(title,sheetId))'
-    });
-    const sheetMeta = (res.data.sheets || []).find(s => s.properties.title === tabName);
-    if (!sheetMeta) throw new Error(`Tab ${tabName} not found`);
-    const sheetId = sheetMeta.properties.sheetId;
+    const sheetId = await this._getSheetId(tabName);
+    if (sheetId == null) throw new Error(`Tab ${tabName} not found`);
     const sheetRowNum = await this._findRowIndex(tabName, id);
-    if (sheetRowNum < 0) throw new Error(`Row with id=${id} not found in ${tabName}`);
-
-    await this.sheets.spreadsheets.batchUpdate({
+    if (sheetRowNum < 0) throw new Error(`Row id=${id} not found in ${tabName}`);
+    await withRetry(() => this.sheets.spreadsheets.batchUpdate({
       spreadsheetId: this.spreadsheetId,
       requestBody: {
         requests: [{
           deleteDimension: {
-            range: {
-              sheetId,
-              dimension: 'ROWS',
-              startIndex: sheetRowNum - 1, // 0-based
-              endIndex: sheetRowNum        // exclusive
-            }
+            range: { sheetId, dimension: 'ROWS', startIndex: sheetRowNum - 1, endIndex: sheetRowNum }
           }
         }]
       }
-    });
+    }));
+    this._invalidate(tabName); // clear cache after delete
   }
 }
 
@@ -204,49 +216,9 @@ async function getSheetsClient() {
 // Global db instance
 let db = null;
 
-// ── Improved delete that uses sheetId correctly ──
-// Patch SheetDB.delete to fix the "spreadsheets.spreadsheets" typo by overriding properly
+// deleteRow delegates to db.delete (which has cache invalidation built in)
 async function deleteRow(tabName, id) {
-  const sheetsApi = db.sheets;
-  const spreadsheetId = db.spreadsheetId;
-
-  const metaRes = await withRetry(() => sheetsApi.spreadsheets.get({
-    spreadsheetId,
-    fields: 'sheets(properties(title,sheetId))'
-  }));
-  const sheetMeta = (metaRes.data.sheets || []).find(s => s.properties.title === tabName);
-  if (!sheetMeta) throw new Error(`Tab ${tabName} not found`);
-  const sheetId = sheetMeta.properties.sheetId;
-
-  const colRes = await withRetry(() => sheetsApi.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${tabName}!A:A`
-  }));
-  const col = colRes.data.values || [];
-  let sheetRowNum = -1;
-  for (let i = 1; i < col.length; i++) {
-    if (String((col[i] && col[i][0]) || '').trim() === String(id).trim()) {
-      sheetRowNum = i + 1;
-      break;
-    }
-  }
-  if (sheetRowNum < 0) throw new Error(`Row with id=${id} not found in ${tabName}`);
-
-  await withRetry(() => sheetsApi.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: {
-      requests: [{
-        deleteDimension: {
-          range: {
-            sheetId,
-            dimension: 'ROWS',
-            startIndex: sheetRowNum - 1,
-            endIndex: sheetRowNum
-          }
-        }
-      }]
-    }
-  }));
+  await db.delete(tabName, id);
 }
 
 // ══════════════════════════════════════════════════════
@@ -1851,8 +1823,7 @@ async function seedAdminIfNeeded() {
     // Verify connection by reading spreadsheet metadata
     await withRetry(() => sheetsApi.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'spreadsheetId' }));
     db = new SheetDB(sheetsApi, SHEET_ID);
-    db.delete = async (tabName, id) => deleteRow(tabName, id);
-    console.log('  Google Sheets DB connected');
+    console.log('  Google Sheets DB connected (with 45s in-memory cache)');
 
     try { await seedAdminIfNeeded(); } catch(e) { console.log('  Seed skipped (will retry on next start):', e.message); }
 
