@@ -333,121 +333,202 @@ tbody tr:last-child td{border-bottom:none;}
 .mob-nav-badge.show{display:flex;}
 
 /* ══════════════════════════════════════
-   MOBILE — kill horizontal overflow first
+   MOBILE — Premium 3D Design
 ══════════════════════════════════════ */
 @media(max-width:768px){
+  /* ── BASE ── */
   html,body{overflow-x:hidden;max-width:100vw;}
   *{box-sizing:border-box;}
-  img,table,iframe,video{max-width:100%;}
+  img,iframe,video{max-width:100%;}
 
-  /* Layout */
+  /* ── LAYOUT ── */
   .sidebar{display:none !important;}
   .mobile-bottom-nav{display:block;}
-  .main{margin-left:0 !important;padding-bottom:65px;min-height:100vh;}
+  .main{margin-left:0 !important;padding-bottom:72px;min-height:100vh;background:#f1f5f9;}
+  .page{padding:14px 12px;width:100%;overflow-x:hidden;}
 
-  /* Topbar */
-  .topbar{padding:0 12px;height:50px;}
-  .topbar-title{font-size:15px;font-weight:700;}
-  .topbar-right .btn{font-size:11px;padding:5px 9px;}
-
-  /* Pages */
-  .page{padding:12px;width:100%;overflow-x:hidden;}
-
-  /* ── Dashboard header ── */
-  .dash-topbar{
-    display:flex;flex-direction:column;
-    align-items:flex-start;gap:8px;margin-bottom:12px;
+  /* ── TOPBAR — gradient ── */
+  .topbar{
+    padding:0 14px;height:52px;
+    background:linear-gradient(135deg,#1a56db 0%,#3b82f6 100%);
+    box-shadow:0 3px 14px rgba(26,86,219,0.35);
   }
-  .dash-topbar h2{font-size:16px;}
-  .dash-topbar-btns{display:flex;flex-wrap:wrap;gap:6px;width:100%;}
-  .dash-topbar-btns .btn{font-size:11px;padding:6px 10px;flex-shrink:0;}
-
-  /* ── Overview stat cards — 3 in a row, compact ── */
-  .overview-cards{
-    display:grid;grid-template-columns:repeat(3,1fr);
-    gap:8px;margin-bottom:12px;
+  .topbar-title{font-size:15px;font-weight:700;color:#fff !important;}
+  .topbar-right .btn{
+    font-size:11px;padding:5px 10px;
+    background:rgba(255,255,255,0.18);color:#fff;
+    border:1px solid rgba(255,255,255,0.3);border-radius:8px;
   }
+  .topbar-right select{max-width:130px;font-size:11px;}
+
+  /* ── BOTTOM NAV — frosted glass ── */
+  .mobile-bottom-nav{
+    background:rgba(255,255,255,0.96) !important;
+    backdrop-filter:blur(14px) !important;
+    -webkit-backdrop-filter:blur(14px) !important;
+    border-top:1px solid rgba(226,232,240,0.9) !important;
+    box-shadow:0 -4px 24px rgba(0,0,0,0.09) !important;
+  }
+  .mob-nav-item.active{color:#1a56db;}
+  .mob-nav-item.active svg{filter:drop-shadow(0 0 4px rgba(26,86,219,0.4));}
+
+  /* ── DASHBOARD HEADER ── */
+  .dash-topbar{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:16px;}
+  .dash-topbar h2{font-size:18px;font-weight:800;color:#0f172a;}
+  .dash-topbar-btns{display:flex;flex-wrap:wrap;gap:7px;width:100%;}
+  .dash-topbar-btns .btn{font-size:11px;padding:7px 12px;flex-shrink:0;border-radius:10px;}
+
+  /* ── STAT CARDS — 3D gradient ── */
+  .overview-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
   .ov-card{
-    padding:10px 8px;border-radius:10px;
+    padding:14px 6px;border-radius:16px;
     display:flex;flex-direction:column;align-items:center;text-align:center;
+    border:none !important;
+    box-shadow:0 4px 18px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04);
+    transition:transform .15s,box-shadow .15s;
   }
-  .ov-card .label{font-size:10px;color:#64748b;margin-bottom:4px;}
-  .ov-card .number{font-size:28px;font-weight:700;line-height:1;}
+  .ov-card:active{transform:scale(0.95);}
+  .ov-card.pending{background:linear-gradient(145deg,#fff1f2,#fff);box-shadow:0 4px 20px rgba(239,68,68,0.2),0 1px 4px rgba(0,0,0,0.05);}
+  .ov-card.revised{background:linear-gradient(145deg,#fffbeb,#fff);box-shadow:0 4px 20px rgba(245,158,11,0.2),0 1px 4px rgba(0,0,0,0.05);}
+  .ov-card.completed{background:linear-gradient(145deg,#f0fdf4,#fff);box-shadow:0 4px 20px rgba(16,185,129,0.2),0 1px 4px rgba(0,0,0,0.05);}
+  .ov-card .label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;}
+  .ov-card.pending .label{color:#dc2626;}
+  .ov-card.revised .label{color:#d97706;}
+  .ov-card.completed .label{color:#059669;}
+  .ov-card .number{font-size:30px;font-weight:800;line-height:1;}
 
-  /* ── Dashboard bottom — single column ── */
-  .dash-bottom{grid-template-columns:1fr !important;gap:10px;}
-  .chart-card{order:-1;}
-  .chart-wrap{height:150px;}
+  /* ── DASHBOARD BOTTOM — single column ── */
+  .dash-bottom{grid-template-columns:1fr !important;gap:12px;}
+  .chart-card{order:-1;border-radius:16px !important;box-shadow:0 4px 18px rgba(0,0,0,0.07) !important;overflow:hidden;}
+  .chart-wrap{height:140px;}
 
-  /* ── Task table inside dashboard ── */
-  .task-table-card{overflow:hidden;}
-  .card-head{padding:10px 12px;flex-wrap:wrap;gap:6px;}
-  .card-head-title{font-size:13px;}
-  .tab-group{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .tab{white-space:nowrap;font-size:11px;padding:4px 10px;}
-  table{width:100%;table-layout:fixed;}
-  thead th{font-size:10px;padding:8px 6px;word-break:break-word;}
-  tbody td{font-size:11px;padding:7px 6px;word-break:break-word;}
+  /* ── PENDING TASKS TABLE — compact, no horizontal scroll ── */
+  .task-table-card{
+    border-radius:16px !important;overflow:hidden;
+    box-shadow:0 4px 18px rgba(0,0,0,0.07) !important;
+  }
+  .card-head{padding:12px 14px;flex-wrap:wrap;gap:6px;background:#fff;}
+  .card-head-title{font-size:13px;font-weight:700;}
+  .tab-group{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .tab-group::-webkit-scrollbar{display:none;}
+  .tab{white-space:nowrap;font-size:11px;padding:5px 12px;}
+  /* Remove min-width so table fits screen; hide Doer & Priority columns */
+  .task-table-card table{min-width:unset !important;table-layout:auto !important;width:100% !important;}
+  .task-table-card thead th:nth-child(3),
+  .task-table-card thead th:nth-child(5),
+  .task-table-card tbody td:nth-child(3),
+  .task-table-card tbody td:nth-child(5){display:none !important;}
+  .task-table-card thead th{font-size:10px;padding:9px 6px;white-space:nowrap;}
+  .task-table-card tbody td{font-size:11px;padding:9px 6px;vertical-align:middle;}
+  .task-table-card tbody td:nth-child(2){
+    max-width:110px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;
+  }
+  /* All action buttons no-wrap */
+  .action-btn{white-space:nowrap !important;padding:4px 9px;font-size:10px;border-radius:6px;}
 
-  /* ── Page headers ── */
-  .page-header{flex-wrap:wrap;gap:8px;margin-bottom:12px;}
-  .page-header h2{font-size:16px;}
-  .page-header .btn{font-size:11px;padding:6px 10px;}
+  /* ── PAGE HEADERS ── */
+  .page-header{flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .page-header h2{font-size:18px;font-weight:800;color:#0f172a;}
+  .page-header .btn{font-size:11px;padding:7px 12px;border-radius:10px;}
 
-  /* ── All tasks blocks ── */
-  .user-task-block{margin-bottom:8px;}
-  .utb-header{padding:10px 12px;}
-  .utb-name{font-size:13px;}
+  /* ── USERS TABLE → PREMIUM CARDS ── */
+  .users-grid{overflow-x:visible !important;}
+  .users-grid table,.users-grid tbody,.users-grid tr,.users-grid td{
+    display:block !important;width:auto !important;
+  }
+  .users-grid thead{display:none !important;}
+  .users-grid tr{
+    background:#fff;border-radius:16px;
+    border:1px solid #e8edf4 !important;
+    margin-bottom:10px;padding:14px 12px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.07),0 1px 3px rgba(0,0,0,0.04);
+    position:relative;overflow:hidden;
+  }
+  .users-grid tr::before{
+    content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+    background:linear-gradient(180deg,#1a56db,#3b82f6);
+    border-radius:3px 0 0 3px;
+  }
+  .users-grid td{border:none !important;padding:0 !important;line-height:1.5;}
+  .users-grid td:nth-child(1){
+    font-weight:700;font-size:14px;color:#0f172a;
+    padding-bottom:2px !important;padding-right:85px !important;
+  }
+  .users-grid td:nth-child(2){
+    font-size:11px;color:#64748b;padding-bottom:1px !important;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    max-width:calc(100% - 85px);
+  }
+  .users-grid td:nth-child(3){font-size:11px;color:#94a3b8;padding-bottom:1px !important;}
+  .users-grid td:nth-child(4){font-size:11px;color:#94a3b8;padding-bottom:5px !important;}
+  .users-grid td:nth-child(5){display:inline-flex !important;padding-bottom:0 !important;}
+  .users-grid td:nth-child(6){
+    position:absolute !important;top:12px;right:10px;
+    display:flex !important;gap:5px;padding:0 !important;width:auto !important;
+  }
+  .users-grid td:nth-child(6) .action-btn{
+    white-space:nowrap !important;font-size:10px;padding:5px 10px;border-radius:7px;
+  }
+  /* Users page — search bar full width */
+  #page-users .page-header{flex-direction:column;align-items:stretch;}
+  #page-users .page-header > div{display:flex;gap:8px;align-items:center;}
+  #userSearch{flex:1 !important;width:auto !important;min-width:0 !important;}
+
+  /* ── ALL TASKS BLOCKS ── */
+  .user-task-block{
+    margin-bottom:10px;border-radius:14px !important;overflow:hidden;
+    box-shadow:0 2px 12px rgba(0,0,0,0.07) !important;
+  }
+  .utb-header{padding:12px 14px;}
+  .utb-name{font-size:13px;font-weight:700;}
   .utb-count{font-size:12px;}
   .utb-actions{flex-wrap:wrap;gap:4px;}
-  .utb-actions .btn{font-size:10px;padding:4px 7px;}
+  .utb-actions .btn{font-size:10px;padding:4px 8px;}
   .flat-tasks-table{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
-  /* ── Modals — full-width sheet from bottom ── */
-  .modal-overlay{
-    align-items:flex-end;
-    padding:0;
-  }
+  /* ── MODALS — premium bottom sheet ── */
+  .modal-overlay{align-items:flex-end;padding:0;}
   .modal{
     width:100vw !important;max-width:100vw !important;
-    border-radius:18px 18px 0 0;
-    padding:18px 16px 24px;
-    max-height:88vh;
-    margin:0;
+    border-radius:24px 24px 0 0;
+    padding:20px 16px 30px;
+    max-height:90vh;margin:0;
+    box-shadow:0 -10px 40px rgba(0,0,0,0.18) !important;
   }
-  .modal h3{font-size:15px;margin-bottom:12px;}
-  .modal-footer{gap:6px;flex-wrap:wrap;}
-  .modal-footer .btn{flex:1;text-align:center;justify-content:center;}
+  .modal h3{font-size:16px;font-weight:700;margin-bottom:16px;}
+  .modal-footer{gap:8px;flex-wrap:wrap;margin-top:16px;}
+  .modal-footer .btn{flex:1;text-align:center;justify-content:center;padding:10px;}
 
-  /* ── Forms ── */
+  /* ── FORMS ── */
   .form-row{grid-template-columns:1fr !important;}
-  .form-group{margin-bottom:10px;}
-  .form-group label{font-size:11px;}
+  .form-group{margin-bottom:12px;}
+  .form-group label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;}
   .form-group input,.form-group select,.form-group textarea{
-    font-size:16px;padding:10px 11px;
+    font-size:16px;padding:11px 12px;border-radius:10px !important;
   }
 
-  /* ── Buttons ── */
-  .btn{font-size:12px;padding:7px 12px;}
-  .btn-sm{font-size:10px;padding:4px 8px;}
-  .action-btn{padding:3px 8px;font-size:10px;}
+  /* ── BUTTONS ── */
+  .btn{font-size:12px;padding:8px 14px;border-radius:10px;}
+  .btn-sm{font-size:10px;padding:4px 9px;border-radius:8px;}
 
-  /* ── Profile ── */
-  .profile-card{padding:16px;max-width:100%;}
+  /* ── PROFILE ── */
+  .profile-card{
+    padding:18px 16px;max-width:100%;
+    border-radius:18px !important;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08) !important;
+  }
 
   /* ── MIS ── */
   .mis-header{flex-wrap:wrap;gap:6px;}
   .mis-header .btn,.mis-header select,.mis-header input{font-size:12px;}
   .mis-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
-  /* ── Users ── */
-  .users-grid{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-
-  /* ── Bulk upload ── */
+  /* ── BULK ── */
   .bulk-section{margin-top:14px;padding-top:12px;}
   .file-row{flex-wrap:wrap;gap:6px;}
 
-  /* ── Badges ── */
+  /* ── BADGES ── */
   .status-badge{font-size:10px;padding:2px 7px;}
   .priority-badge{font-size:9px;padding:2px 6px;}
   .role-badge{font-size:10px;}
@@ -457,11 +538,8 @@ tbody tr:last-child td{border-bottom:none;}
   .fms-coach{min-width:120px;}
   .fms-name-tab{font-size:12px;padding:6px 12px;}
 
-  /* ── Toast ── */
-  #toast{bottom:75px !important;}
-
-  /* Hide employee filter select on very small screens if needed */
-  .topbar-right select{max-width:120px;font-size:11px;}
+  /* ── TOAST ── */
+  #toast{bottom:78px !important;}
 }
 </style>
 </head>
