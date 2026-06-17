@@ -516,8 +516,12 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     // Determine which user IDs to include
     let allowedUserIds = null; // null = all
 
-    if (isAdmin && filterEmployee && filterEmployee !== 'all') {
-      allowedUserIds = [String(filterEmployee)];
+    if (isAdmin) {
+      // Admin/PC: show all, or filter by specific employee
+      if (filterEmployee && filterEmployee !== 'all') {
+        allowedUserIds = [String(filterEmployee)];
+      }
+      // else allowedUserIds stays null = show all tasks
     } else if (isHod) {
       const meUser = await db.findOne('Users', { id: String(uid) });
       const dept = meUser?.department || '';
@@ -540,7 +544,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
       if (dateFrom && dateTo) {
         return due >= dateFrom && due <= dateTo;
       }
-      return due <= todayStr;
+      return true; // show all tasks regardless of due date
     };
 
     let pending = 0, revised = 0, completed = 0;
