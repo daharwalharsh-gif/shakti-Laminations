@@ -1673,12 +1673,9 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
         <div id="fmsDoneActualDisplay" style="font-size:15px;font-weight:700;color:#10b981;background:#f0fdf4;padding:10px 14px;border-radius:8px"></div>
       </div>
     </div>
-    <!-- Delay reason (shown if actual > plan) -->
+    <!-- Delay reason hidden — removed by user request -->
     <div id="fmsDoneDelaySection" style="display:none">
-      <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:8px">⚠️ Delay Detected — Reason Required</div>
-        <input type="text" id="fmsDoneDelayReason" placeholder="Delay ka reason likho..." style="width:100%;padding:9px 12px;border:1.5px solid #fcd34d;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:#fff"/>
-      </div>
+      <input type="hidden" id="fmsDoneDelayReason" value=""/>
     </div>
     <!-- Extra input fields (shown when step has extraRows configured) -->
     <div id="fmsDoneExtraSection" style="display:none;margin-bottom:16px">
@@ -4628,7 +4625,7 @@ async function loadFMSDetail(id) {
   // Step tabs
   const stepTabsEl = document.getElementById('fmsStepTabs');
   stepTabsEl.innerHTML = steps.map((s,i) => `
-    <div class="fms-step-tab ${i===0?'active':''}" onclick="showFMSStep(${i})" id="fmsStepTab${i}">${s.step_name}</div>
+    <div class="fms-step-tab ${i===0?'active':''}" onclick="showFMSStep(${i})" id="fmsStepTab${i}">${s.stepName||s.step_name||`Step ${i+1}`}</div>
   `).join('');
 
   fmsActiveStep = 0;
@@ -4647,18 +4644,30 @@ function showFMSStep(idx) {
 function showFMSStepData(steps, idx) {
   const s = steps[idx];
   if (!s) return;
-  const doerNames = (s.doers||[]).map(d=>d.name).join(', ') || '—';
-  const extraRowsHtml = s.extraInput==='yes' ? `
+  // Doers stored as user IDs — lookup names from fmsAllUsers
+  const doerIds = Array.isArray(s.doers) ? s.doers : [];
+  const doerNames = doerIds.map(d => {
+    if (typeof d === 'object' && d.name) return d.name; // already enriched
+    const u = fmsAllUsers.find(u => parseInt(u.id) === parseInt(d));
+    return u ? u.name : String(d);
+  }).join(', ') || '—';
+
+  const stepName  = s.stepName  || s.step_name  || `Step ${idx+1}`;
+  const planCol   = s.planCol   || s.plan_col   || '—';
+  const actualCol = s.actualCol || s.actual_col || '—';
+  const extraInput= s.extraInput|| s.extra_input || 'no';
+
+  const extraRowsHtml = extraInput === 'yes' ? `
     <div style="margin-top:12px">
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">Extra Input Rows:</div>
-      ${(s.extraRows||[]).map(r=>`<div style="font-size:13px;padding:4px 0;color:#374151">• ${r.row_label||'(unnamed)'}</div>`).join('')}
+      ${(s.extraRows||[]).map(r=>`<div style="font-size:13px;padding:4px 0;color:#374151">• ${r.row_label||r.label||'(unnamed)'}</div>`).join('')}
     </div>` : '';
 
   document.getElementById('fmsStepContent').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div>
         <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Step Name</div>
-        <div style="font-size:15px;font-weight:600;color:#1e293b;margin-top:4px">${s.step_name}</div>
+        <div style="font-size:15px;font-weight:600;color:#1e293b;margin-top:4px">${stepName}</div>
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Step Doer(s)</div>
@@ -4666,15 +4675,15 @@ function showFMSStepData(steps, idx) {
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Plan Column</div>
-        <div style="font-size:14px;color:#374151;margin-top:4px">${s.plan_col||'—'} <span style="color:#94a3b8;font-size:12px">(Plan ${idx+1})</span></div>
+        <div style="font-size:14px;color:#374151;margin-top:4px">${planCol} <span style="color:#94a3b8;font-size:12px">(Plan ${idx+1})</span></div>
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Actual Column</div>
-        <div style="font-size:14px;color:#374151;margin-top:4px">${s.actual_col||'—'} <span style="color:#94a3b8;font-size:12px">(Actual ${idx+1})</span></div>
+        <div style="font-size:14px;color:#374151;margin-top:4px">${actualCol} <span style="color:#94a3b8;font-size:12px">(Actual ${idx+1})</span></div>
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Extra Input</div>
-        <div style="font-size:14px;color:#374151;margin-top:4px">${s.extra_input==='yes'?'Yes (Col: '+s.extra_col+')':'No'}</div>
+        <div style="font-size:14px;color:#374151;margin-top:4px">${extraInput==='yes'?'Yes':'No'}</div>
       </div>
     </div>
     ${extraRowsHtml}
@@ -5722,7 +5731,6 @@ function openFMSDoneModal(rowIdx) {
   document.getElementById('fmsDonePlanVal').value = row.planValue;
   document.getElementById('fmsDoneErr').style.display = 'none';
   document.getElementById('fmsDoneDelaySection').style.display = 'none';
-  document.getElementById('fmsDoneDelayReason').value = '';
 
   // Show row data
   const colKeys = Object.keys(row.data);
@@ -5740,25 +5748,7 @@ function openFMSDoneModal(rowIdx) {
   const actualStr = dateOnlyStr; // Only date saved to sheet
   document.getElementById('fmsDoneActualDisplay').textContent = actualStr;
 
-  // Check delay: actual > plan = delayed
-  const planVal = (row.planValue || '').trim();
-  let isDelayed = false;
-  try {
-    // Try various date formats: DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, DD-MM-YYYY HH:MM:SS
-    let planDate;
-    const ddmmyyyy = planVal.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(.*)?$/);
-    const yyyymmdd = planVal.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(.*)?$/);
-    if (ddmmyyyy) {
-      const [, d, m, y, time=''] = ddmmyyyy;
-      planDate = new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}${time.replace(' ','T')||'T23:59:59'}`);
-    } else if (yyyymmdd) {
-      planDate = new Date(planVal);
-    }
-    if (planDate && !isNaN(planDate.getTime()) && now > planDate) isDelayed = true;
-  } catch(e) {}
-
-  document.getElementById('fmsDoneDelaySection').style.display = isDelayed ? 'block' : 'none';
-  document.getElementById('fmsDoneDelayReason').value = '';
+  // Delay reason removed — always hidden
 
   // Populate extra input fields based on step configuration
   const activeStep = window._fmsActiveStepData;
@@ -5814,13 +5804,7 @@ async function saveFMSDone() {
   const actualValue = document.getElementById('fmsDoneActualDisplay').textContent;
   const errEl = document.getElementById('fmsDoneErr');
   errEl.style.display = 'none';
-
-  const delaySection = document.getElementById('fmsDoneDelaySection');
-  let delayReason = '';
-  if (delaySection.style.display !== 'none') {
-    delayReason = document.getElementById('fmsDoneDelayReason').value.trim();
-    if (!delayReason) { errEl.textContent = 'Delay reason likhna zaroori hai!'; errEl.style.display = 'block'; return; }
-  }
+  const delayReason = '';
 
   const saveBtn = document.getElementById('fmsDoneSaveBtn') || document.querySelector('#fmsDoneModal .btn-green');
   saveBtn.textContent = '⏳ Saving...';
@@ -5851,10 +5835,10 @@ async function saveFMSDone() {
   }).filter(e => e.colLetter && e.value !== '');
 
   const r = await api(`/api/fms-tasks/${fmsId}/steps/${stepId}/done`, 'POST', {
-    rowNumber: parseInt(rowNum),
+    rowIndex: parseInt(rowNum),
     actualValue,
     delayReason,
-    extraInputs
+    extraFields: extraInputs.map(e => ({ col: e.colLetter, value: e.value }))
   });
 
   saveBtn.textContent = '💾 Save to Sheet';
