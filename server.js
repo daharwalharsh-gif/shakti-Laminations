@@ -1210,16 +1210,26 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
         const allRows = resp.data.values || [];
         if (allRows.length < fms.header_row) continue;
         const headers = allRows[fms.header_row - 1] || [];
-        const dataRows = allRows.slice(fms.header_row);
+        const rawDataRows = allRows.slice(fms.header_row);
+        // Filter out empty/template rows (only checkboxes/formulas, no real data)
+        const dataRows = rawDataRows.filter(row => {
+          const checkLen = Math.min(10, headers.length);
+          for (let i = 0; i < checkLen; i++) {
+            const v = (row[i] || '').trim();
+            if (v && v.toUpperCase() !== 'FALSE' && v.toUpperCase() !== 'TRUE') return true;
+          }
+          return false;
+        });
 
         const stepRows = fms.steps.map((step, si) => {
-          const aIdx = step.actualCol ? step.actualCol.toUpperCase().charCodeAt(0)-65 : -1;
-          const pIdx = step.planCol   ? step.planCol.toUpperCase().charCodeAt(0)-65   : -1;
+          const aIdx = colLetterToIdx(step.actualCol || '');
+          const pIdx = colLetterToIdx(step.planCol   || '');
           let pending=0, done=0, late=0;
           for (const row of dataRows) {
             const actual = aIdx>=0 ? (row[aIdx]||'').trim() : '';
             const plan   = pIdx>=0 ? (row[pIdx]||'').trim() : '';
-            if (actual) { done++; } else {
+            const isDone = actual && actual.toUpperCase() !== 'FALSE';
+            if (isDone) { done++; } else {
               pending++;
               if (plan && plan < todayStr) late++;
             }
@@ -1385,16 +1395,25 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
         const allRows = resp.data.values || [];
         if (allRows.length < fms.header_row) continue;
         const headers = allRows[fms.header_row - 1] || [];
-        const dataRows = allRows.slice(fms.header_row);
+        const rawRows = allRows.slice(fms.header_row);
+        // Filter out empty/template rows
+        const dataRows = rawRows.filter(row => {
+          const checkLen = Math.min(10, headers.length);
+          for (let i = 0; i < checkLen; i++) {
+            const v = (row[i] || '').trim();
+            if (v && v.toUpperCase() !== 'FALSE' && v.toUpperCase() !== 'TRUE') return true;
+          }
+          return false;
+        });
 
         fms.steps.forEach((step, si) => {
           if (!step.actualCol) return;
-          const aIdx = step.actualCol.toUpperCase().charCodeAt(0)-65;
-          const pIdx = step.planCol ? step.planCol.toUpperCase().charCodeAt(0)-65 : -1;
+          const aIdx = colLetterToIdx(step.actualCol);
+          const pIdx = colLetterToIdx(step.planCol || '');
 
           dataRows.forEach((row, ri) => {
             const actual = (row[aIdx]||'').trim();
-            if (actual) return; // already done
+            if (actual && actual.toUpperCase() !== 'FALSE') return; // already done
             const planVal = pIdx>=0 ? (row[pIdx]||'').trim() : '';
 
             // Parse plan date
@@ -1651,6 +1670,17 @@ function idxToColLetter(idx) {
   return letter;
 }
 
+// Helper: convert column letter(s) A, Z, AA, AB... to 0-based index
+function colLetterToIdx(letter) {
+  if (!letter) return -1;
+  const s = letter.trim().toUpperCase();
+  let idx = 0;
+  for (let i = 0; i < s.length; i++) {
+    idx = idx * 26 + (s.charCodeAt(i) - 64);
+  }
+  return idx - 1; // 0-based
+}
+
 // Helper: convert header string array to [{col, name, index}] objects
 function headersToObjects(arr) {
   return arr.map((name, i) => ({ col: idxToColLetter(i), name: name || `Col_${idxToColLetter(i)}`, index: i }));
@@ -1873,7 +1903,7 @@ app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/fms-tasks/:fmsId/steps/:stepId/rows — fetch actual rows from external sheet
+// GET /api/fms-tasks/:fmsId/steps/:stepId/rows — fetch pending rows from external sheet
 app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res) => {
   try {
     const d = await getDB();
@@ -1882,42 +1912,66 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
 
     const fms = parseFMSRow(fmsRow);
     const step = fms.steps.find((s,i) => String(s.id || i+1) === String(req.params.stepId));
-    if (!step) return res.json({ rows: [], headers: [], total: 0 });
+    if (!step) return res.json({ rows: [], headers: [], total: 0, allHeaders: [] });
 
     const spreadsheetId = extractSheetId(fms.sheet_id);
-    const headerRow = fms.header_row;
+    const headerRow = parseInt(fms.header_row) || 1;
 
-    // Fetch all data from external sheet
+    // Fetch full sheet — use wide range to cover columns beyond Z
     const response = await withRetry(() => d.sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${fms.sheet_name}!A:Z`
+      spreadsheetId, range: `${fms.sheet_name}!A1:ZZ`
     }));
     const allRows = response.data.values || [];
-    if (allRows.length < headerRow) return res.json({ rows: [], headers: [], total: 0 });
+    if (allRows.length < headerRow) return res.json({ rows: [], headers: [], total: 0, allHeaders: [] });
 
     const headers = allRows[headerRow - 1] || [];
-    const dataRows = allRows.slice(headerRow);
+    const rawDataRows = allRows.slice(headerRow);
 
-    // Convert to objects
-    const objects = dataRows.map((row, idx) => {
-      const obj = { _rowIndex: headerRow + idx + 1 };
-      headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
-      return obj;
+    const actualIdx = colLetterToIdx(step.actualCol || '');
+    const planIdx   = colLetterToIdx(step.planCol   || '');
+
+    // Determine first-column check range for "real data" (skip pure-checkbox/formula-only rows)
+    // A row is real if at least one of its first 10 columns has a non-empty, non-boolean value
+    const hasRealData = (row) => {
+      const checkLen = Math.min(10, headers.length);
+      for (let i = 0; i < checkLen; i++) {
+        const v = (row[i] || '').trim();
+        if (v && v.toUpperCase() !== 'FALSE' && v.toUpperCase() !== 'TRUE') return true;
+      }
+      return false;
+    };
+
+    // Filter: actual empty AND has real data → pending
+    const pending = rawDataRows
+      .map((row, idx) => ({ row, sheetRow: headerRow + idx + 1 }))
+      .filter(({ row }) => {
+        if (!hasRealData(row)) return false;
+        if (actualIdx < 0) return true; // no actualCol configured → all pending
+        const actual = (row[actualIdx] || '').trim();
+        return !actual || actual.toUpperCase() === 'FALSE';
+      });
+
+    // Apply showCols filter to determine which columns to show in table
+    const showColsIdx = (step.showCols || []).map(Number).filter(n => !isNaN(n));
+    const visibleHeaders = showColsIdx.length > 0
+      ? headers.filter((h, i) => showColsIdx.includes(i))
+      : headers.filter((h, i) => i !== actualIdx); // hide actual col by default
+
+    // Build response in format frontend expects: {sheetRowNumber, planValue, data:{...}}
+    const rows = pending.map(({ row, sheetRow }) => {
+      const data = {};
+      visibleHeaders.forEach((h, vi) => {
+        const colIdx = showColsIdx.length > 0 ? showColsIdx[vi] : headers.indexOf(h);
+        data[h || `Col_${idxToColLetter(colIdx)}`] = row[colIdx] !== undefined ? String(row[colIdx]) : '';
+      });
+      return {
+        sheetRowNumber: sheetRow,
+        planValue: planIdx >= 0 ? (row[planIdx] || '') : '',
+        data
+      };
     });
 
-    // Filter: actual column empty = pending rows
-    const actualColLetter = (step.actualCol || '').toUpperCase();
-    let filtered = objects;
-    if (actualColLetter) {
-      const colIdx = actualColLetter.charCodeAt(0) - 65;
-      const headerName = headers[colIdx] || '';
-      filtered = objects.filter(r => !r[headerName] || String(r[headerName]).trim() === '');
-    }
-
-    // Apply showCols filter — stored as array of column indices
-    const showColsIdx = (step.showCols || []).map(Number).filter(n => !isNaN(n));
-    const visibleHeaders = showColsIdx.length > 0 ? headers.filter((h,i) => showColsIdx.includes(i)) : headers;
-
-    res.json({ rows: filtered, headers: visibleHeaders, total: filtered.length, allHeaders: headers });
+    res.json({ rows, headers: visibleHeaders, total: rows.length, allHeaders: headers });
   } catch(err) {
     let msg = err.message || 'Unknown error';
     if (msg.includes('403')) msg = 'Access denied — FMS sheet ko service account ke saath share karo';
@@ -1943,9 +1997,6 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
 
     const spreadsheetId = extractSheetId(fms.sheet_id);
     const updates = [];
-
-    // Build updates array for batch
-    const colToIdx = (letter) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
 
     if (step.actualCol && actualValue !== undefined) {
       updates.push({ range: `${fms.sheet_name}!${step.actualCol.toUpperCase()}${rowIndex}`, values: [[actualValue]] });
