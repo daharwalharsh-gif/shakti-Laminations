@@ -50,7 +50,8 @@ class SheetDB {
     this._cache = {};       // { tabName: { data:[], ts:0 } }
     this._hdrCache = {};    // { tabName: string[] }  — headers never change
     this._sheetIdCache = {}; // { tabName: sheetId }
-    this.TTL = 45000;       // 45 sec cache — keeps quota well under 60 req/min
+    this._inflight = {};    // promise coalescing: { tabName: Promise }
+    this.TTL = 90000;       // 90 sec cache — halves quota usage
   }
 
   _invalidate(tabName) {
@@ -72,23 +73,35 @@ class SheetDB {
     const cached = this._cache[tabName];
     if (cached && (Date.now() - cached.ts) < this.TTL) return cached.data;
 
-    const res = await withRetry(() => this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.spreadsheetId,
-      range: `${tabName}!A:Z`
-    }));
-    const rows = res.data.values || [];
-    let data = [];
-    if (rows.length >= 2) {
-      const headers = rows[0];
-      this._hdrCache[tabName] = headers; // also update header cache
-      data = rows.slice(1).map(row => {
-        const obj = {};
-        headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
-        return obj;
-      });
+    // Promise coalescing: if fetch already in progress for this tab, wait for it
+    if (this._inflight[tabName]) return this._inflight[tabName];
+
+    const fetchPromise = (async () => {
+      const res = await withRetry(() => this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `${tabName}!A:Z`
+      }));
+      const rows = res.data.values || [];
+      let data = [];
+      if (rows.length >= 2) {
+        const headers = rows[0];
+        this._hdrCache[tabName] = headers;
+        data = rows.slice(1).map(row => {
+          const obj = {};
+          headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
+          return obj;
+        });
+      }
+      this._cache[tabName] = { data, ts: Date.now() };
+      return data;
+    })();
+
+    this._inflight[tabName] = fetchPromise;
+    try {
+      return await fetchPromise;
+    } finally {
+      delete this._inflight[tabName];
     }
-    this._cache[tabName] = { data, ts: Date.now() };
-    return data;
   }
 
   async findWhere(tabName, filter) {
@@ -216,9 +229,20 @@ async function getSheetsClient() {
 // Global db instance
 let db = null;
 
+// Wait for db to be ready (handles Vercel cold-start race condition)
+async function getDB() {
+  if (db) return db;
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    if (db) return db;
+  }
+  throw new Error('Database not initialized — server still starting up, please retry in a moment');
+}
+
 // deleteRow delegates to db.delete (which has cache invalidation built in)
 async function deleteRow(tabName, id) {
-  await db.delete(tabName, id);
+  const d = await getDB();
+  await d.delete(tabName, id);
 }
 
 // ══════════════════════════════════════════════════════
@@ -475,6 +499,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════
 app.get('/api/dashboard', requireAuth, async (req, res) => {
   try {
+    const db = await getDB();
     const uid = req.session.userId;
     const role = req.session.role;
     const isAdmin = role === 'admin' || role === 'pc';
@@ -522,12 +547,16 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     let pending = 0, revised = 0, completed = 0;
     let delegationPending = [], checklistPending = [];
 
-    if (taskType === 'delegation' || taskType === 'both') {
-      const allDel = await db.findAll('Delegation_Tasks');
-      const allUsers = await db.findAll('Users');
-      const userMap = {};
-      for (const u of allUsers) userMap[String(u.id)] = u;
+    // Fetch all needed tabs in parallel (promise coalescing prevents duplicate API calls)
+    const fetchDel = (taskType === 'delegation' || taskType === 'both') ? db.findAll('Delegation_Tasks') : Promise.resolve([]);
+    const fetchChl = (taskType === 'checklist'  || taskType === 'both') ? db.findAll('Checklist_Tasks')  : Promise.resolve([]);
+    const fetchUsr = db.findAll('Users');
+    const [allDel, allChl, allUsers] = await Promise.all([fetchDel, fetchChl, fetchUsr]);
 
+    const userMap = {};
+    for (const u of allUsers) userMap[String(u.id)] = u;
+
+    if (taskType === 'delegation' || taskType === 'both') {
       for (const t of allDel) {
         if (!taskFilter(t)) continue;
         if (t.status === 'pending') pending++;
@@ -551,11 +580,6 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     }
 
     if (taskType === 'checklist' || taskType === 'both') {
-      const allChl = await db.findAll('Checklist_Tasks');
-      const allUsers = await db.findAll('Users');
-      const userMap = {};
-      for (const u of allUsers) userMap[String(u.id)] = u;
-
       for (const t of allChl) {
         if (!taskFilter(t)) continue;
         if (t.status === 'pending') pending++;
@@ -579,7 +603,16 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
     res.json({
       pending, revised, completed,
-      todayPending: [...delegationPending, ...checklistPending]
+      todayPending: [...delegationPending, ...checklistPending],
+      // separate counts for backward compat
+      delegationPending: delegationPending.length,
+      delegationRevised: revised,
+      delegationCompleted: completed,
+      checklistPending: checklistPending.length,
+      checklistRevised: 0,
+      checklistCompleted: 0,
+      delegationTodayPending: delegationPending,
+      checklistTodayPending: checklistPending
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

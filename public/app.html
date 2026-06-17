@@ -2158,27 +2158,27 @@ async function loadDashboard() {
   const dateParams = (isPC && dateFrom && dateTo) ? `&dateFrom=${dateFrom}&dateTo=${dateTo}` : '';
 
   const baseUrl = (isAdmin || isHod || isPC)
-    ? `/api/dashboard?employee=${empVal}${hodParam}${dateParams}&taskType=`
-    : `/api/dashboard?taskType=`;
-  const [dDel, dChl] = await Promise.all([
-    api(baseUrl + 'delegation'),
-    api(baseUrl + 'checklist')
-  ]);
+    ? `/api/dashboard?employee=${empVal}${hodParam}${dateParams}&taskType=both`
+    : `/api/dashboard?taskType=both`;
+  const d = await api(baseUrl);
 
   // Error check: agar DB ya API fail ho toh user ko dikhao
-  if (dDel.error || dChl.error) {
-    const errMsg = dDel.error || dChl.error;
-    console.error('Dashboard API error:', errMsg);
+  if (d.error) {
+    console.error('Dashboard API error:', d.error);
     document.getElementById('dPending').textContent = 'Err';
     document.getElementById('dRevised').textContent = 'Err';
     document.getElementById('dCompleted').textContent = 'Err';
-    document.getElementById('dashTbody').innerHTML = `<tr><td colspan="6" style="color:red;padding:16px;text-align:center">⚠️ Data load failed: ${errMsg}<br><small>Check /api/debug for details</small></td></tr>`;
+    document.getElementById('dashTbody').innerHTML = `<tr><td colspan="6" style="color:#dc2626;padding:20px;text-align:center">⚠️ Data load failed: ${d.error}<br><button onclick="loadDashboard()" style="margin-top:8px;padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Retry</button></td></tr>`;
     return;
   }
 
-  document.getElementById('dPending').textContent = (dDel.pending||0) + (dChl.pending||0);
-  document.getElementById('dRevised').textContent = (dDel.revised||0) + (dChl.revised||0);
-  document.getElementById('dCompleted').textContent = (dDel.completed||0) + (dChl.completed||0);
+  // Merge both types from single call
+  const dDel = { pending: d.delegationPending||0, revised: d.delegationRevised||0, completed: d.delegationCompleted||0, todayPending: d.delegationTodayPending||[] };
+  const dChl = { pending: d.checklistPending||0,  revised: d.checklistRevised||0,  completed: d.checklistCompleted||0,  todayPending: d.checklistTodayPending||[] };
+
+  document.getElementById('dPending').textContent = (d.pending||0);
+  document.getElementById('dRevised').textContent = (d.revised||0);
+  document.getElementById('dCompleted').textContent = (d.completed||0);
 
   if (isAdmin || isHod || isPC) {
     empFilter.style.display = 'block';
@@ -2232,7 +2232,7 @@ async function loadDashboard() {
   });
 
   // Combine both types for the unified pending table
-  const allTodayPending = [...(dDel.todayPending||[]), ...(dChl.todayPending||[])];
+  const allTodayPending = d.todayPending || [...(dDel.todayPending||[]), ...(dChl.todayPending||[])];
   window._lastDashTasks = allTodayPending;
   // Keep sort state across reloads (don't reset)
   renderDashTable(allTodayPending, dashType);
