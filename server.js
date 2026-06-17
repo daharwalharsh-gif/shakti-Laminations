@@ -1516,19 +1516,309 @@ app.delete('/api/comments/:id', requireAuth, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════
-// FMS ROUTES (stub — return empty)
+// FMS ROUTES — Full implementation
 // ══════════════════════════════════════════════════════
-app.get('/api/fms', requireAuth, requireAdmin, async (req, res) => res.json([]));
-app.get('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => res.status(404).json({ error: 'FMS not available' }));
-app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => res.status(503).json({ error: 'FMS not available in Sheets version' }));
-app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => res.status(503).json({ error: 'FMS not available in Sheets version' }));
-app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => res.status(503).json({ error: 'FMS not available in Sheets version' }));
-app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => res.json({ headers: [] }));
-app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => res.json({ success: false, headers: [], totalRows: 0, sample: [] }));
-app.get('/api/fms-tasks', requireAuth, async (req, res) => res.json([]));
-app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => res.status(404).json({ error: 'FMS not available' }));
-app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res) => res.json({ rows: [], headers: [], total: 0 }));
-app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, res) => res.status(503).json({ error: 'FMS not available in Sheets version' }));
+
+// Helper: extract spreadsheet ID from URL or raw ID
+function extractSheetId(raw) {
+  if (!raw) return '';
+  const m = String(raw).match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : raw.trim();
+}
+
+// Helper: ensure FMS_Config tab exists in main spreadsheet
+async function ensureFMSConfigTab(d) {
+  try {
+    await d.findAll('FMS_Config');
+  } catch(e) {
+    // Tab missing — create it with headers
+    try {
+      await withRetry(() => d.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        requestBody: { requests: [{ addSheet: { properties: { title: 'FMS_Config' } } }] }
+      }));
+    } catch(e2) { /* already exists race */ }
+    await withRetry(() => d.sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: 'FMS_Config!A1:H1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [['id','fms_name','sheet_name','sheet_id','header_row','total_steps','steps_json','created_at']] }
+    }));
+    delete d._hdrCache['FMS_Config'];
+    delete d._cache['FMS_Config'];
+  }
+}
+
+// Parse FMS row from sheet
+function parseFMSRow(row) {
+  let steps = [];
+  try { steps = JSON.parse(row.steps_json || '[]'); } catch(e) {}
+  return {
+    id: parseInt(row.id),
+    fms_name: row.fms_name || row.sheet_name,
+    sheet_name: row.sheet_name,
+    sheet_id: row.sheet_id,
+    header_row: parseInt(row.header_row) || 1,
+    total_steps: parseInt(row.total_steps) || 1,
+    steps,
+    created_at: row.created_at
+  };
+}
+
+// POST /api/fms/fetch-headers — must be BEFORE /:id route
+app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => {
+  try {
+    const { sheetId, sheetName, headerRow = 1 } = req.body;
+    if (!sheetId || !sheetName)
+      return res.status(400).json({ error: 'sheetId aur sheetName dono required hain' });
+
+    const spreadsheetId = extractSheetId(sheetId);
+    const d = await getDB();
+    const rowNum = parseInt(headerRow) || 1;
+
+    const response = await withRetry(() => d.sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!${rowNum}:${rowNum}`
+    }));
+
+    const headers = (response.data.values && response.data.values[0]) ? response.data.values[0] : [];
+    if (!headers.length)
+      return res.json({ headers: [], error: 'No headers found — sheet tab name ya row number check karo' });
+
+    res.json({ headers });
+  } catch(err) {
+    let msg = err.message || 'Unknown error';
+    if (msg.includes('403') || msg.toLowerCase().includes('forbidden'))
+      msg = 'Access denied (403) — sheet ko service account email ke saath Editor access de kar share karo';
+    else if (msg.includes('404') || msg.toLowerCase().includes('not found'))
+      msg = 'Sheet not found (404) — Sheet ID ya Tab name galat hai, check karo';
+    else if (msg.includes('400'))
+      msg = 'Invalid request (400) — Tab name mein special characters avoid karo';
+    res.status(500).json({ error: msg });
+  }
+});
+
+// GET /api/fms — list all
+app.get('/api/fms', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureFMSConfigTab(d);
+    const rows = await d.findAll('FMS_Config');
+    res.json(rows.map(parseFMSRow));
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/fms/:id — single FMS with steps
+app.get('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureFMSConfigTab(d);
+    const row = await d.findOne('FMS_Config', { id: String(req.params.id) });
+    if (!row) return res.status(404).json({ error: 'FMS not found' });
+    const fms = parseFMSRow(row);
+    res.json({ sheet: fms, steps: fms.steps });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/fms — create
+app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureFMSConfigTab(d);
+    const { fmsName, sheetName, sheetId, headerRow, totalSteps, steps } = req.body;
+    if (!sheetName || !sheetId) return res.status(400).json({ error: 'sheetName aur sheetId required hain' });
+    const nowStr = new Date().toISOString().replace('T',' ').split('.')[0];
+    const inserted = await d.insert('FMS_Config', {
+      fms_name: fmsName || sheetName,
+      sheet_name: sheetName,
+      sheet_id: extractSheetId(sheetId),
+      header_row: String(parseInt(headerRow)||1),
+      total_steps: String(parseInt(totalSteps)||1),
+      steps_json: JSON.stringify(steps || []),
+      created_at: nowStr
+    });
+    res.json({ id: parseInt(inserted.id), fms_name: inserted.fms_name, ...inserted });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/fms/:id — update
+app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    const { fmsName, sheetName, sheetId, headerRow, totalSteps, steps } = req.body;
+    const upd = {};
+    if (fmsName !== undefined)    upd.fms_name    = fmsName;
+    if (sheetName !== undefined)  upd.sheet_name  = sheetName;
+    if (sheetId !== undefined)    upd.sheet_id    = extractSheetId(sheetId);
+    if (headerRow !== undefined)  upd.header_row  = String(parseInt(headerRow)||1);
+    if (totalSteps !== undefined) upd.total_steps = String(parseInt(totalSteps)||1);
+    if (steps !== undefined)      upd.steps_json  = JSON.stringify(steps);
+    await d.update('FMS_Config', req.params.id, upd);
+    res.json({ success: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/fms/:id
+app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await d.delete('FMS_Config', req.params.id);
+    res.json({ success: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/fms/:id/sync — fetch headers from external sheet
+app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    const row = await d.findOne('FMS_Config', { id: String(req.params.id) });
+    if (!row) return res.status(404).json({ error: 'FMS not found' });
+    const spreadsheetId = extractSheetId(row.sheet_id);
+    const headerRow = parseInt(row.header_row) || 1;
+    const response = await withRetry(() => d.sheets.spreadsheets.values.get({
+      spreadsheetId, range: `${row.sheet_name}!${headerRow}:${headerRow}`
+    }));
+    const headers = response.data.values?.[0] || [];
+    const dataRes = await withRetry(() => d.sheets.spreadsheets.values.get({
+      spreadsheetId, range: `${row.sheet_name}!A:Z`
+    }));
+    const totalRows = Math.max(0, (dataRes.data.values?.length || 0) - headerRow);
+    res.json({ success: true, headers, totalRows, sample: [] });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/fms-tasks — list FMS configs (for task view dropdown)
+app.get('/api/fms-tasks', requireAuth, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureFMSConfigTab(d);
+    const rows = await d.findAll('FMS_Config');
+    res.json(rows.map(r => ({
+      id: parseInt(r.id),
+      fms_name: r.fms_name || r.sheet_name,
+      sheet_name: r.sheet_name,
+      sheet_id: r.sheet_id,
+      header_row: parseInt(r.header_row)||1,
+      total_steps: parseInt(r.total_steps)||1
+    })));
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/fms-tasks/:id — single FMS for task view
+app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
+  try {
+    const d = await getDB();
+    const row = await d.findOne('FMS_Config', { id: String(req.params.id) });
+    if (!row) return res.status(404).json({ error: 'FMS not found' });
+    res.json(parseFMSRow(row));
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/fms-tasks/:fmsId/steps/:stepId/rows — fetch actual rows from external sheet
+app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res) => {
+  try {
+    const d = await getDB();
+    const fmsRow = await d.findOne('FMS_Config', { id: String(req.params.fmsId) });
+    if (!fmsRow) return res.status(404).json({ error: 'FMS not found' });
+
+    const fms = parseFMSRow(fmsRow);
+    const step = fms.steps.find((s,i) => String(s.id || i+1) === String(req.params.stepId));
+    if (!step) return res.json({ rows: [], headers: [], total: 0 });
+
+    const spreadsheetId = extractSheetId(fms.sheet_id);
+    const headerRow = fms.header_row;
+
+    // Fetch all data from external sheet
+    const response = await withRetry(() => d.sheets.spreadsheets.values.get({
+      spreadsheetId, range: `${fms.sheet_name}!A:Z`
+    }));
+    const allRows = response.data.values || [];
+    if (allRows.length < headerRow) return res.json({ rows: [], headers: [], total: 0 });
+
+    const headers = allRows[headerRow - 1] || [];
+    const dataRows = allRows.slice(headerRow);
+
+    // Convert to objects
+    const objects = dataRows.map((row, idx) => {
+      const obj = { _rowIndex: headerRow + idx + 1 };
+      headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
+      return obj;
+    });
+
+    // Filter: actual column empty = pending rows
+    const actualColLetter = (step.actualCol || '').toUpperCase();
+    let filtered = objects;
+    if (actualColLetter) {
+      const colIdx = actualColLetter.charCodeAt(0) - 65;
+      const headerName = headers[colIdx] || '';
+      filtered = objects.filter(r => !r[headerName] || String(r[headerName]).trim() === '');
+    }
+
+    // Apply showCols filter
+    const showCols = (step.showCols || []).filter(Boolean);
+    const visibleHeaders = showCols.length > 0 ? headers.filter(h => showCols.includes(h)) : headers;
+
+    res.json({ rows: filtered, headers: visibleHeaders, total: filtered.length, allHeaders: headers });
+  } catch(err) {
+    let msg = err.message || 'Unknown error';
+    if (msg.includes('403')) msg = 'Access denied — FMS sheet ko service account ke saath share karo';
+    if (msg.includes('404')) msg = 'Sheet not found — FMS config mein Sheet ID/Tab check karo';
+    res.status(500).json({ error: msg });
+  }
+});
+
+// POST /api/fms-tasks/:fmsId/steps/:stepId/done — mark step done in external sheet
+app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, res) => {
+  try {
+    const d = await getDB();
+    const fmsRow = await d.findOne('FMS_Config', { id: String(req.params.fmsId) });
+    if (!fmsRow) return res.status(404).json({ error: 'FMS not found' });
+
+    const fms = parseFMSRow(fmsRow);
+    const stepIdx = fms.steps.findIndex((s,i) => String(s.id || i+1) === String(req.params.stepId));
+    if (stepIdx < 0) return res.status(404).json({ error: 'Step not found' });
+    const step = fms.steps[stepIdx];
+
+    const { rowIndex, actualValue, delayReason, doerName, extraFields } = req.body;
+    if (!rowIndex) return res.status(400).json({ error: 'rowIndex required' });
+
+    const spreadsheetId = extractSheetId(fms.sheet_id);
+    const updates = [];
+
+    // Build updates array for batch
+    const colToIdx = (letter) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
+
+    if (step.actualCol && actualValue !== undefined) {
+      updates.push({ range: `${fms.sheet_name}!${step.actualCol.toUpperCase()}${rowIndex}`, values: [[actualValue]] });
+    }
+    if (step.delayReasonCol && delayReason !== undefined) {
+      updates.push({ range: `${fms.sheet_name}!${step.delayReasonCol.toUpperCase()}${rowIndex}`, values: [[delayReason]] });
+    }
+    if (step.doerNameCol && doerName !== undefined) {
+      updates.push({ range: `${fms.sheet_name}!${step.doerNameCol.toUpperCase()}${rowIndex}`, values: [[doerName]] });
+    }
+    if (extraFields && Array.isArray(extraFields)) {
+      for (const ef of extraFields) {
+        if (ef.col && ef.value !== undefined) {
+          updates.push({ range: `${fms.sheet_name}!${ef.col.toUpperCase()}${rowIndex}`, values: [[ef.value]] });
+        }
+      }
+    }
+
+    if (updates.length > 0) {
+      await withRetry(() => d.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: { valueInputOption: 'USER_ENTERED', data: updates }
+      }));
+    }
+
+    res.json({ success: true });
+  } catch(err) {
+    let msg = err.message || 'Unknown error';
+    if (msg.includes('403')) msg = 'Access denied — sheet ko service account ke saath Editor access de';
+    res.status(500).json({ error: msg });
+  }
+});
 
 // ══════════════════════════════════════════════════════
 // TASK TRANSFERS
