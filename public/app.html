@@ -5014,10 +5014,11 @@ function appendFMSStepBox(idx, containerId) {
 }
 
 function buildStepBoxHTML(idx) {
-  const s = fmsSteps[idx];
-  const userOptions = fmsAllUsers.map(u=>`
+  const s = fmsSteps[idx] || {};
+  const validUsers = (fmsAllUsers || []).filter(u => u && u.id);
+  const userOptions = validUsers.map(u=>`
     <div class="multi-select-item" data-uid="${u.id}" onclick="toggleFMSDoer(event,${idx},${u.id})">
-      <input type="checkbox" ${(s.doers||[]).map(d=>parseInt(d)).includes(parseInt(u.id))?'checked':''}/> ${u.name}
+      <input type="checkbox" ${(s.doers||[]).map(d=>parseInt(d)).includes(parseInt(u.id))?'checked':''}/> ${u.name||''}
     </div>`).join('');
 
   // Build header options for selects — MUST be declared BEFORE extraRowsHTML
@@ -5335,9 +5336,11 @@ function toggleFMSDoer(e, idx, uid) {
 
 function updateFMSDoerTags(idx) {
   const tags = document.getElementById(`fmsDoerTags_${idx}`);
-  const doers = fmsSteps[idx].doers||[];
+  if (!tags) return;
+  const doers = (fmsSteps[idx] && fmsSteps[idx].doers) || [];
   if (!doers.length) { tags.innerHTML=`<span style="color:#94a3b8;font-size:12px">Select users...</span>`; return; }
-  const names = doers.map(uid=>{ const u=fmsAllUsers.find(u=>parseInt(u.id)===parseInt(uid)); return u?u.name:''; }).filter(Boolean);
+  const validUsers = (fmsAllUsers || []).filter(u => u && u.id);
+  const names = doers.map(uid=>{ const u=validUsers.find(u=>parseInt(u.id)===parseInt(uid)); return u?u.name:''; }).filter(Boolean);
   tags.innerHTML = names.map(n=>`<span class="tag-badge">${n}</span>`).join('');
 }
 

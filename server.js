@@ -1480,7 +1480,7 @@ app.get('/api/users/with-pending-tasks', requireAuth, async (req, res) => {
 app.get('/api/users', requireAuth, async (req, res) => {
   try {
     const all = await db.findAll('Users');
-    const result = all.map(u => ({
+    const result = all.filter(u => u && u.id && u.name).map(u => ({
       id: parseInt(u.id), name: u.name, email: u.email,
       notification_email: u.notification_email || '',
       role: u.role, phone: u.phone || '',
