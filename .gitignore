@@ -1,0 +1,22 @@
+# Sensitive credentials — NEVER push these
+.env
+credentials.json
+
+# Claude internal files
+.claude/
+
+# Dependencies
+node_modules/
+
+# Temp/log files
+*.log
+/tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.suo
+*.user
