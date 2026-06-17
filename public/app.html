@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
 <title>Task Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -310,135 +310,158 @@ tbody tr:last-child td{border-bottom:none;}
   display:none;
   position:fixed;bottom:0;left:0;right:0;
   background:#0f172a;z-index:200;
-  padding:0 0 env(safe-area-inset-bottom,0);
-  box-shadow:0 -2px 16px rgba(0,0,0,.25);
+  padding-bottom:env(safe-area-inset-bottom,0);
+  box-shadow:0 -1px 0 rgba(255,255,255,.08);
 }
 .mobile-nav-inner{display:flex;align-items:stretch;}
 .mob-nav-item{
   flex:1;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;padding:10px 4px 8px;
+  justify-content:center;padding:8px 2px 6px;
   cursor:pointer;position:relative;
-  color:#64748b;transition:color .2s;border:none;background:none;
-  font-family:'Inter',sans-serif;
+  color:#64748b;transition:color .15s;border:none;background:none;
+  font-family:'Inter',sans-serif;min-width:0;
 }
 .mob-nav-item.active{color:#60a5fa;}
-.mob-nav-item svg{width:22px;height:22px;margin-bottom:3px;}
-.mob-nav-label{font-size:10px;font-weight:600;letter-spacing:.2px;}
+.mob-nav-item svg{width:20px;height:20px;margin-bottom:2px;flex-shrink:0;}
+.mob-nav-label{font-size:9px;font-weight:600;letter-spacing:.1px;white-space:nowrap;}
 .mob-nav-badge{
-  position:absolute;top:7px;right:calc(50% - 18px);
+  position:absolute;top:6px;left:50%;margin-left:4px;
   background:#ef4444;color:#fff;border-radius:50%;
-  width:15px;height:15px;font-size:9px;font-weight:700;
+  width:14px;height:14px;font-size:8px;font-weight:700;
   display:none;align-items:center;justify-content:center;
 }
 .mob-nav-badge.show{display:flex;}
 
 /* ══════════════════════════════════════
-   MOBILE RESPONSIVE
+   MOBILE — kill horizontal overflow first
 ══════════════════════════════════════ */
 @media(max-width:768px){
-  /* Hide desktop sidebar, show bottom nav */
+  html,body{overflow-x:hidden;max-width:100vw;}
+  *{box-sizing:border-box;}
+  img,table,iframe,video{max-width:100%;}
+
+  /* Layout */
   .sidebar{display:none !important;}
   .mobile-bottom-nav{display:block;}
-  .main{margin-left:0 !important;padding-bottom:70px;}
+  .main{margin-left:0 !important;padding-bottom:65px;min-height:100vh;}
 
   /* Topbar */
-  .topbar{padding:0 14px;height:52px;}
-  .topbar-title{font-size:15px;}
+  .topbar{padding:0 12px;height:50px;}
+  .topbar-title{font-size:15px;font-weight:700;}
+  .topbar-right .btn{font-size:11px;padding:5px 9px;}
 
   /* Pages */
-  .page{padding:14px 12px;}
+  .page{padding:12px;width:100%;overflow-x:hidden;}
 
-  /* Dashboard overview cards — 2 per row on mobile */
-  .overview-cards{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
-  .ov-card{padding:14px 14px;}
-  .ov-card .label{font-size:12px;}
-  .ov-card .number{font-size:26px;}
+  /* ── Dashboard header ── */
+  .dash-topbar{
+    display:flex;flex-direction:column;
+    align-items:flex-start;gap:8px;margin-bottom:12px;
+  }
+  .dash-topbar h2{font-size:16px;}
+  .dash-topbar-btns{display:flex;flex-wrap:wrap;gap:6px;width:100%;}
+  .dash-topbar-btns .btn{font-size:11px;padding:6px 10px;flex-shrink:0;}
 
-  /* Dashboard bottom — single column */
-  .dash-bottom{grid-template-columns:1fr;gap:12px;}
+  /* ── Overview stat cards — 3 in a row, compact ── */
+  .overview-cards{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    gap:8px;margin-bottom:12px;
+  }
+  .ov-card{
+    padding:10px 8px;border-radius:10px;
+    display:flex;flex-direction:column;align-items:center;text-align:center;
+  }
+  .ov-card .label{font-size:10px;color:#64748b;margin-bottom:4px;}
+  .ov-card .number{font-size:28px;font-weight:700;line-height:1;}
+
+  /* ── Dashboard bottom — single column ── */
+  .dash-bottom{grid-template-columns:1fr !important;gap:10px;}
   .chart-card{order:-1;}
-  .chart-wrap{height:160px;}
+  .chart-wrap{height:150px;}
 
-  /* Page headers */
-  .page-header{flex-wrap:wrap;gap:8px;margin-bottom:14px;}
-  .page-header h2{font-size:17px;}
-  .dash-topbar{flex-wrap:wrap;gap:8px;margin-bottom:14px;}
-  .dash-topbar h2{font-size:17px;}
-  .dash-topbar-btns{flex-wrap:wrap;gap:6px;}
-  .dash-topbar-btns .btn{font-size:11px;padding:6px 10px;}
+  /* ── Task table inside dashboard ── */
+  .task-table-card{overflow:hidden;}
+  .card-head{padding:10px 12px;flex-wrap:wrap;gap:6px;}
+  .card-head-title{font-size:13px;}
+  .tab-group{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .tab{white-space:nowrap;font-size:11px;padding:4px 10px;}
+  table{width:100%;table-layout:fixed;}
+  thead th{font-size:10px;padding:8px 6px;word-break:break-word;}
+  tbody td{font-size:11px;padding:7px 6px;word-break:break-word;}
 
-  /* Tables → horizontal scroll */
-  table{font-size:12px;}
-  thead th{padding:8px 10px;font-size:10px;}
-  tbody td{padding:8px 10px;font-size:12px;}
+  /* ── Page headers ── */
+  .page-header{flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .page-header h2{font-size:16px;}
+  .page-header .btn{font-size:11px;padding:6px 10px;}
+
+  /* ── All tasks blocks ── */
+  .user-task-block{margin-bottom:8px;}
+  .utb-header{padding:10px 12px;}
+  .utb-name{font-size:13px;}
+  .utb-count{font-size:12px;}
+  .utb-actions{flex-wrap:wrap;gap:4px;}
+  .utb-actions .btn{font-size:10px;padding:4px 7px;}
   .flat-tasks-table{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
-  /* User task blocks */
-  .utb-header{padding:12px 14px;}
-  .utb-name{font-size:13px;}
-  .utb-actions .btn{font-size:11px;padding:5px 8px;}
-
-  /* Modals — slide up from bottom on mobile */
-  .modal-overlay{align-items:flex-end;}
+  /* ── Modals — full-width sheet from bottom ── */
+  .modal-overlay{
+    align-items:flex-end;
+    padding:0;
+  }
   .modal{
-    width:100% !important;max-width:100% !important;
-    border-radius:20px 20px 0 0;
-    padding:20px 18px;
-    max-height:90vh;
+    width:100vw !important;max-width:100vw !important;
+    border-radius:18px 18px 0 0;
+    padding:18px 16px 24px;
+    max-height:88vh;
     margin:0;
   }
-  .modal h3{font-size:15px;margin-bottom:14px;}
+  .modal h3{font-size:15px;margin-bottom:12px;}
+  .modal-footer{gap:6px;flex-wrap:wrap;}
+  .modal-footer .btn{flex:1;text-align:center;justify-content:center;}
 
-  /* Form rows → single column on mobile */
+  /* ── Forms ── */
   .form-row{grid-template-columns:1fr !important;}
-  .form-group{margin-bottom:12px;}
+  .form-group{margin-bottom:10px;}
+  .form-group label{font-size:11px;}
   .form-group input,.form-group select,.form-group textarea{
-    font-size:16px; /* prevents iOS zoom */
-    padding:10px 12px;
+    font-size:16px;padding:10px 11px;
   }
 
-  /* Buttons */
-  .btn{font-size:12px;padding:8px 12px;}
-  .btn-sm{font-size:11px;padding:5px 9px;}
+  /* ── Buttons ── */
+  .btn{font-size:12px;padding:7px 12px;}
+  .btn-sm{font-size:10px;padding:4px 8px;}
+  .action-btn{padding:3px 8px;font-size:10px;}
 
-  /* Profile */
-  .profile-card{padding:18px;max-width:100%;}
+  /* ── Profile ── */
+  .profile-card{padding:16px;max-width:100%;}
 
-  /* MIS header */
-  .mis-header{gap:8px;}
-  .mis-header .btn{font-size:11px;padding:6px 10px;}
-
-  /* Approvals tabs */
-  .tab-group{overflow-x:auto;}
-  .tab{white-space:nowrap;font-size:11px;}
-
-  /* File upload row */
-  .file-row{flex-wrap:wrap;}
-
-  /* Action buttons — smaller on mobile */
-  .action-btn{padding:4px 8px;font-size:11px;}
-
-  /* MIS table */
+  /* ── MIS ── */
+  .mis-header{flex-wrap:wrap;gap:6px;}
+  .mis-header .btn,.mis-header select,.mis-header input{font-size:12px;}
   .mis-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
-  /* Users grid */
-  .users-grid{overflow-x:auto;}
+  /* ── Users ── */
+  .users-grid{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
-  /* Topbar right buttons */
-  .topbar-right .btn{font-size:11px;padding:6px 10px;}
+  /* ── Bulk upload ── */
+  .bulk-section{margin-top:14px;padding-top:12px;}
+  .file-row{flex-wrap:wrap;gap:6px;}
 
-  /* FMS train on mobile */
-  .fms-train-track{padding:16px 0 28px;}
-  .fms-coach{min-width:130px;}
+  /* ── Badges ── */
+  .status-badge{font-size:10px;padding:2px 7px;}
+  .priority-badge{font-size:9px;padding:2px 6px;}
+  .role-badge{font-size:10px;}
 
-  /* Toast bottom offset */
-  #toast{bottom:80px !important;}
-}
+  /* ── FMS ── */
+  .fms-train-track{padding:14px 0 26px;}
+  .fms-coach{min-width:120px;}
+  .fms-name-tab{font-size:12px;padding:6px 12px;}
 
-@media(max-width:400px){
-  .overview-cards{grid-template-columns:1fr;}
-  .ov-card .number{font-size:28px;}
-  .page{padding:12px 10px;}
+  /* ── Toast ── */
+  #toast{bottom:75px !important;}
+
+  /* Hide employee filter select on very small screens if needed */
+  .topbar-right select{max-width:120px;font-size:11px;}
 }
 </style>
 </head>
@@ -556,22 +579,21 @@ tbody tr:last-child td{border-bottom:none;}
   <!-- ── DASHBOARD ── -->
   <div id="page-dashboard" class="page active">
     <div class="dash-topbar">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;min-width:0;">
         <h2>Dashboard</h2>
         <select id="dashEmployeeFilter" onchange="onPCFilterChange()"
-          style="padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff;display:none">
+          style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff;display:none;max-width:160px;">
           <option value="all">All Employees</option>
         </select>
-        <!-- PC-only date range filter -->
-        <div id="pcDateRangeFilter" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
-          <label style="font-size:12px;color:#64748b;font-weight:600">From:</label>
-          <input type="date" id="pcDateFrom" onchange="onPCFilterChange()"
-            style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff">
-          <label style="font-size:12px;color:#64748b;font-weight:600">To:</label>
-          <input type="date" id="pcDateTo" onchange="onPCFilterChange()"
-            style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff">
-          <button onclick="clearPCDateFilter()" style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;color:#64748b">✕ Clear</button>
-        </div>
+      </div>
+      <div id="pcDateRangeFilter" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;width:100%;margin-top:6px;">
+        <label style="font-size:12px;color:#64748b;font-weight:600">From:</label>
+        <input type="date" id="pcDateFrom" onchange="onPCFilterChange()"
+          style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff;flex:1;min-width:120px;">
+        <label style="font-size:12px;color:#64748b;font-weight:600">To:</label>
+        <input type="date" id="pcDateTo" onchange="onPCFilterChange()"
+          style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff;flex:1;min-width:120px;">
+        <button onclick="clearPCDateFilter()" style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;color:#64748b">✕</button>
       </div>
       <div class="dash-topbar-btns" id="dashBtns"></div>
     </div>
