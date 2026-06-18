@@ -1224,15 +1224,25 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
         const stepRows = fms.steps.map((step, si) => {
           const aIdx = colLetterToIdx(step.actualCol || '');
           const pIdx = colLetterToIdx(step.planCol   || '');
+          // Previous steps' actualCol indices for prerequisite checking
+          const prevActualIdxs = fms.steps.slice(0, si)
+            .map(s => colLetterToIdx(s.actualCol || ''))
+            .filter(i => i >= 0);
           let pending=0, done=0, late=0;
           for (const row of dataRows) {
             const actual = aIdx>=0 ? (row[aIdx]||'').trim() : '';
             const plan   = pIdx>=0 ? (row[pIdx]||'').trim() : '';
-            const isDone = actual && actual.toUpperCase() !== 'FALSE';
-            if (isDone) { done++; } else {
-              pending++;
-              if (plan && plan < todayStr) late++;
+            const isDoneVal = actual && actual.toUpperCase() !== 'FALSE';
+            if (isDoneVal) { done++; continue; }
+            // Check if previous steps are done — if not, skip this row entirely
+            let prevNotDone = false;
+            for (const prevIdx of prevActualIdxs) {
+              const pv = (row[prevIdx]||'').trim();
+              if (!pv || pv.toUpperCase() === 'FALSE') { prevNotDone = true; break; }
             }
+            if (prevNotDone) continue; // row not yet eligible for this step
+            pending++;
+            if (plan && plan < todayStr) late++;
           }
           const doerNames = Array.isArray(step.doers) ? step.doers.join(', ') : (step.doers||'');
           return {
@@ -1411,9 +1421,19 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
           const aIdx = colLetterToIdx(step.actualCol);
           const pIdx = colLetterToIdx(step.planCol || '');
 
+          // Previous steps' actualCol indices — all must be done before this step shows as pending
+          const prevActualIdxs = fms.steps.slice(0, si)
+            .map(s => colLetterToIdx(s.actualCol || ''))
+            .filter(i => i >= 0);
+
           dataRows.forEach((row, ri) => {
             const actual = (row[aIdx]||'').trim();
             if (actual && actual.toUpperCase() !== 'FALSE') return; // already done
+            // Skip if any previous step is not yet done
+            for (const prevIdx of prevActualIdxs) {
+              const prevVal = (row[prevIdx]||'').trim();
+              if (!prevVal || prevVal.toUpperCase() === 'FALSE') return;
+            }
             const planVal = pIdx>=0 ? (row[pIdx]||'').trim() : '';
 
             // Parse plan date
@@ -1911,8 +1931,10 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     if (!fmsRow) return res.status(404).json({ error: 'FMS not found' });
 
     const fms = parseFMSRow(fmsRow);
-    const step = fms.steps.find((s,i) => String(s.id || i+1) === String(req.params.stepId));
-    if (!step) return res.json({ rows: [], headers: [], total: 0, allHeaders: [] });
+    // Find current step index (0-based)
+    const stepIdx = fms.steps.findIndex((s,i) => String(s.id || i+1) === String(req.params.stepId));
+    if (stepIdx < 0) return res.json({ rows: [], headers: [], total: 0, allHeaders: [] });
+    const step = fms.steps[stepIdx];
 
     const spreadsheetId = extractSheetId(fms.sheet_id);
     const headerRow = parseInt(fms.header_row) || 1;
@@ -1930,8 +1952,12 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     const actualIdx = colLetterToIdx(step.actualCol || '');
     const planIdx   = colLetterToIdx(step.planCol   || '');
 
+    // Pre-compute previous steps' actualCol indices
+    const prevStepActualIdxs = fms.steps.slice(0, stepIdx)
+      .map(s => colLetterToIdx(s.actualCol || ''))
+      .filter(i => i >= 0);
+
     // Determine first-column check range for "real data" (skip pure-checkbox/formula-only rows)
-    // A row is real if at least one of its first 10 columns has a non-empty, non-boolean value
     const hasRealData = (row) => {
       const checkLen = Math.min(10, headers.length);
       for (let i = 0; i < checkLen; i++) {
@@ -1941,14 +1967,24 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
       return false;
     };
 
-    // Filter: actual empty AND has real data → pending
+    // A value counts as "done" if it's non-empty and not FALSE (checkbox unchecked)
+    const isDone = (val) => {
+      const v = (val || '').trim();
+      return v !== '' && v.toUpperCase() !== 'FALSE';
+    };
+
+    // Filter: real data row + ALL previous steps done + current step pending
     const pending = rawDataRows
       .map((row, idx) => ({ row, sheetRow: headerRow + idx + 1 }))
       .filter(({ row }) => {
         if (!hasRealData(row)) return false;
-        if (actualIdx < 0) return true; // no actualCol configured → all pending
-        const actual = (row[actualIdx] || '').trim();
-        return !actual || actual.toUpperCase() === 'FALSE';
+        // All previous steps must be done
+        for (const prevIdx of prevStepActualIdxs) {
+          if (!isDone(row[prevIdx])) return false;
+        }
+        // Current step must be pending
+        if (actualIdx < 0) return true;
+        return !isDone(row[actualIdx]);
       });
 
     // Apply showCols filter to determine which columns to show in table
