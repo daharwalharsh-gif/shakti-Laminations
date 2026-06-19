@@ -1911,7 +1911,7 @@ async function openDelegateByMeModal() {
   const data = await api('/api/tasks?type=delegation&mine=1');
   let tasks = [];
   if (data.grouped) {
-    data.grouped.forEach(g => g.tasks.forEach(t => tasks.push(t)));
+    data.grouped.forEach(g => (g.tasks || []).forEach(t => tasks.push(t)));
   } else {
     tasks = data.tasks || [];
   }
@@ -2600,7 +2600,7 @@ async function loadAllTasks() {
   let allTasks = [];
   if (isAdmin || isHod || ME.role==='pc') {
     (data.grouped||[]).forEach(g => {
-      g.tasks.forEach(t => allTasks.push(t));
+      (g.tasks || []).forEach(t => allTasks.push(t));
     });
   } else {
     allTasks = data.tasks || [];
@@ -2615,7 +2615,7 @@ async function loadAllTasks() {
       const prevVal = userSel.value;
       const uniqueUsers = {};
       allTasks.forEach(t => {
-        if (t.assignedToId && t.assignedToName) uniqueUsers[t.assignedToId] = t.assignedToName;
+        if (t.assigned_to && t.assignedToName) uniqueUsers[t.assigned_to] = t.assignedToName;
       });
       userSel.innerHTML = '<option value="all">All Employees</option>';
       Object.entries(uniqueUsers).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([id,name]) => {
@@ -2669,7 +2669,7 @@ function renderTasksTable() {
       (t.remarks||'').toLowerCase().includes(search) ||
       (t.status||'').toLowerCase().includes(search) ||
       (t.priority||'').toLowerCase().includes(search);
-    const matchUser = userFilterVal === 'all' || String(t.assignedToId) === String(userFilterVal);
+    const matchUser = userFilterVal === 'all' || String(t.assigned_to) === String(userFilterVal);
     const matchDateFrom = !dateFrom || (t.due_date && t.due_date >= dateFrom);
     const matchDateTo = !dateTo || (t.due_date && t.due_date <= dateTo);
     return matchStatus && matchSearch && matchUser && matchDateFrom && matchDateTo;
@@ -2898,7 +2898,7 @@ async function openComments(taskId, taskType) {
 async function loadComments(taskId, taskType) {
   const comments = await api(`/api/comments/${taskType}/${taskId}`);
   const container = document.getElementById('commentsList');
-  if (!comments.length) {
+  if (!Array.isArray(comments) || !comments.length) {
     container.innerHTML = `<div class="comment-empty">No comments yet. Be the first!</div>`;
     return;
   }
@@ -2958,6 +2958,7 @@ async function openDelegate() {
   document.getElementById('dDate').value=today;
   document.getElementById('dDate').min=today;
   const users = await api('/api/users');
+  if (!Array.isArray(users)) { showToast('Users load nahi hue', 'error'); return; }
   const opts = users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
   document.getElementById('dDoer').innerHTML='<option value="">Select Doer</option>'+opts;
   document.getElementById('delegateModal').classList.add('open');
@@ -2994,6 +2995,7 @@ async function openChecklist() {
   document.getElementById('cDate').value=today;
   document.getElementById('cDate').min=today;
   const users = await api('/api/users');
+  if (!Array.isArray(users)) { showToast('Users load nahi hue', 'error'); return; }
   document.getElementById('cDoer').innerHTML='<option value="">Select Employee</option>'+
     users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
 
@@ -4158,9 +4160,9 @@ function renderAllMIS(data, fmsData) {
       : (emp.delegation.completed||0) + (emp.checklist.completed||0) + (fmsObj.done||0);
 
     // Mini breakdown badges — Delegation, Checklist, FMS sab
-    const delBadge = emp.delegation.total > 0
+    const delBadge = (emp.delegation.total > 0 && delScore !== null)
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${delScore<0?'#fef2f2':'#f0fdf4'};color:${delScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${delScore<0?'#fecaca':'#bbf7d0'}">Del: ${delScore>0?'+':''}${delScore.toFixed(0)}%</span>` : '';
-    const chlBadge = emp.checklist.total > 0
+    const chlBadge = (emp.checklist.total > 0 && chlScore !== null)
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${chlScore<0?'#fef2f2':'#f0fdf4'};color:${chlScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${chlScore<0?'#fecaca':'#bbf7d0'}">CL: ${chlScore>0?'+':''}${chlScore.toFixed(0)}%</span>` : '';
     const fmsBadge = (fmsObj.total > 0 && fmsObj.score !== null)
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${fmsObj.score<50?'#fef2f2':fmsObj.score<80?'#fffbeb':'#f0fdf4'};color:${fmsObj.score<50?'#dc2626':fmsObj.score<80?'#b45309':'#16a34a'};font-weight:600;border:1px solid ${fmsObj.score<50?'#fecaca':fmsObj.score<80?'#fde68a':'#bbf7d0'}">FMS: ${fmsObj.score.toFixed(0)}%</span>` : '';
@@ -4582,7 +4584,9 @@ let fmsSheetHeaders = [];
 async function loadFMSAdmin() {
   const usersRes = await api('/api/users');
   fmsAllUsers = Array.isArray(usersRes) ? usersRes : [];
-  const sheets = await api('/api/fms');
+  const sheetsRes = await api('/api/fms');
+  if (!Array.isArray(sheetsRes)) { showToast(sheetsRes?.error || 'FMS load failed', 'error'); return; }
+  const sheets = sheetsRes;
   fmsAllSheets = sheets;
 
   const tabsEl = document.getElementById('fmsListTabs');

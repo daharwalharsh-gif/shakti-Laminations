@@ -27,12 +27,11 @@ async function withRetry(fn, maxRetries = 2) {
     try {
       return await fn();
     } catch (err) {
-      const isQuota = err.message && (
+      const isQuota = (err.code === 429) || (err.message && (
         err.message.includes('Quota exceeded') ||
         err.message.includes('RESOURCE_EXHAUSTED') ||
-        err.message.includes('rateLimitExceeded') ||
-        (err.code === 429)
-      );
+        err.message.includes('rateLimitExceeded')
+      ));
       if (isQuota && i < maxRetries) {
         await new Promise(r => setTimeout(r, delay));
         delay *= 2;
@@ -79,7 +78,7 @@ class SheetDB {
     const fetchPromise = (async () => {
       const res = await withRetry(() => this.sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: `${tabName}!A:Z`
+        range: `${tabName}!A:AZ`
       }));
       const rows = res.data.values || [];
       let data = [];
@@ -172,7 +171,7 @@ class SheetDB {
     // Get current row values to merge
     const res = await withRetry(() => this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
-      range: `${tabName}!A${sheetRowNum}:Z${sheetRowNum}`
+      range: `${tabName}!A${sheetRowNum}:${idxToColLetter(headers.length - 1)}${sheetRowNum}`
     }));
     const currentVals = (res.data.values && res.data.values[0]) ? res.data.values[0] : [];
     const updatedRow = headers.map((h, i) => {
@@ -181,7 +180,7 @@ class SheetDB {
     });
     await withRetry(() => this.sheets.spreadsheets.values.update({
       spreadsheetId: this.spreadsheetId,
-      range: `${tabName}!A${sheetRowNum}:${String.fromCharCode(64 + headers.length)}${sheetRowNum}`,
+      range: `${tabName}!A${sheetRowNum}:${idxToColLetter(headers.length - 1)}${sheetRowNum}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [updatedRow] }
     }));
@@ -647,7 +646,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
     } else if (isHod) {
       const meUser = await db.findOne('Users', { id: String(uid) });
       const dept = meUser?.department || '';
-      const deptUsers = dept ? (await db.findAll('Users')).filter(u => u.department === dept) : [];
+      const deptUsers = dept ? allUsers.filter(u => u.department === dept) : [];
       if (!deptUsers.length) return res.json({ grouped: [] });
       allowedUserIds = deptUsers.map(u => String(u.id));
     } else {
@@ -1231,7 +1230,7 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
       try {
         const spreadsheetId = extractSheetId(fms.sheet_id);
         const resp = await withRetry(() => d.sheets.spreadsheets.values.get({
-          spreadsheetId, range: `${fms.sheet_name}!A:Z`
+          spreadsheetId, range: `${fms.sheet_name}!A:AZ`
         }));
         const allRows = resp.data.values || [];
         if (allRows.length < fms.header_row) continue;
@@ -1426,7 +1425,7 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
       try {
         const spreadsheetId = extractSheetId(fms.sheet_id);
         const resp = await withRetry(() => d.sheets.spreadsheets.values.get({
-          spreadsheetId, range: `${fms.sheet_name}!A:Z`
+          spreadsheetId, range: `${fms.sheet_name}!A:AZ`
         }));
         const allRows = resp.data.values || [];
         if (allRows.length < fms.header_row) continue;
@@ -1886,7 +1885,7 @@ app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => {
     }));
     const rawHeaders = response.data.values?.[0] || [];
     const dataRes = await withRetry(() => d.sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${row.sheet_name}!A:Z`
+      spreadsheetId, range: `${row.sheet_name}!A:AZ`
     }));
     const totalRows = Math.max(0, (dataRes.data.values?.length || 0) - headerRow);
     res.json({ success: true, headers: headersToObjects(rawHeaders), headerRow, totalRows, sample: [] });
