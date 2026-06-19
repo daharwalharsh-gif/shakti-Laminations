@@ -752,14 +752,40 @@ app.post('/api/tasks/bulk-checklist', requireAuth, requireAdmin, async (req, res
     if (!desc || !assignedTo || !dates || !dates.length) return res.status(400).json({ error: 'Missing fields' });
     const freq = (frequency || '').toLowerCase().trim();
     const nowStr = new Date().toISOString().replace('T', ' ').split('.')[0];
-    for (const date of dates) {
-      await db.insert('Checklist_Tasks', {
-        description: desc, assigned_to: String(parseInt(assignedTo)),
-        assigned_by: String(req.session.userId), due_date: date,
-        status: 'pending', priority: priority || 'low',
-        remarks: remarks || '', frequency: freq, created_at: nowStr
-      });
-    }
+    const d = await getDB();
+
+    // Read headers + existing rows ONCE (avoid 52x quota hits)
+    const headers = await d.getHeaders('Checklist_Tasks');
+    const all = await d.findAll('Checklist_Tasks');
+    let maxId = 0;
+    for (const row of all) { const rid = parseInt(row.id) || 0; if (rid > maxId) maxId = rid; }
+
+    // Build all rows at once
+    const allRowValues = dates.map((date, i) => {
+      const rowData = {
+        id: String(maxId + i + 1),
+        description: desc,
+        assigned_to: String(parseInt(assignedTo)),
+        assigned_by: String(req.session.userId),
+        due_date: date,
+        status: 'pending',
+        priority: priority || 'low',
+        remarks: remarks || '',
+        frequency: freq,
+        created_at: nowStr
+      };
+      return headers.map(h => (rowData[h] != null) ? String(rowData[h]) : '');
+    });
+
+    // Single API call for all rows — no quota hammering
+    await withRetry(() => d.sheets.spreadsheets.values.append({
+      spreadsheetId: d.spreadsheetId,
+      range: 'Checklist_Tasks!A:A',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: allRowValues }
+    }));
+    d._invalidate('Checklist_Tasks'); // clear cache once after batch write
+
     res.json({ success: true, count: dates.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
