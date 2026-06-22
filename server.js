@@ -536,13 +536,15 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
       allowedUserIds = [String(uid)];
     }
 
-    const taskFilter = (task) => {
+    const taskFilter = (task, isChecklist = false) => {
       if (allowedUserIds && !allowedUserIds.includes(String(task.assigned_to))) return false;
       const due = task.due_date || '';
       if (dateFrom && dateTo) {
         return due >= dateFrom && due <= dateTo;
       }
-      return true; // show all tasks regardless of due date
+      // Checklist: future tasks nahi dikhne chahiye — sirf aaj ya pehle wali
+      if (isChecklist && due && due > todayStr) return false;
+      return true;
     };
 
     let pending = 0, revised = 0, completed = 0;
@@ -582,7 +584,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
     if (taskType === 'checklist' || taskType === 'both') {
       for (const t of allChl) {
-        if (!taskFilter(t)) continue;
+        if (!taskFilter(t, true)) continue;
         if (t.status === 'pending') pending++;
         else if (t.status === 'revised') revised++;
         else if (t.status === 'completed') completed++;
@@ -660,7 +662,8 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
         return String(t.assigned_by) === String(uid);
       }
       if (allowedUserIds && !allowedUserIds.includes(String(t.assigned_to))) return false;
-      if (!isDeleg && !includeFuture && t.due_date > todayStr) return false;
+      // Checklist: future tasks hide karo (jab tak unki date na aaye)
+      if (!isDeleg && !includeFuture && t.due_date && t.due_date > todayStr) return false;
       return true;
     }).map(t => ({
       id: parseInt(t.id),
