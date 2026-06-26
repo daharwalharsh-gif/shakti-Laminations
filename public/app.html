@@ -244,7 +244,6 @@ tbody tr:last-child td{border-bottom:none;}
 .role-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;}
 .role-badge.admin{background:#eff6ff;color:#1d4ed8;}
 .role-badge.pc{background:#fdf4ff;color:#7c3aed;}
-.role-badge.pc{background:#fdf4ff;color:#7c3aed;}
 .role-badge.hod{background:#fdf4ff;color:#7e22ce;}
 .role-badge.user{background:#f0fdf4;color:#16a34a;}
 
@@ -1916,7 +1915,7 @@ function renderDbmTable() {
       <td style="white-space:nowrap;font-size:12px;color:#64748b">${fmtDate(t.assigned_on||'')||'—'}</td>
       <td style="white-space:nowrap;font-size:12px">${fmtDate(t.due_date||'')||'—'}${isOverdue?' <span style="color:#dc2626;font-weight:600;font-size:10px">⏰ Overdue</span>':''}</td>
       <td style="font-size:12px;color:#64748b">${t.remarks||'—'}</td>
-      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
+      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision':(t.status||'pending').charAt(0).toUpperCase()+(t.status||'pending').slice(1)}</span></td>
     </tr>`;
   }).join('');
 
@@ -2678,7 +2677,7 @@ function renderTasksTable() {
       <td style="white-space:nowrap;font-size:12px;color:#64748b">${fmtDate(t.assigned_on||'')||'—'}</td>
       <td style="white-space:nowrap">${fmtDate(t.due_date||'')||''}</td>
       <td style="color:#64748b">${t.remarks||'—'}</td>
-      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
+      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':(t.status||'pending').charAt(0).toUpperCase()+(t.status||'pending').slice(1)}</span></td>
     </tr>`;
   }).join('');
 
@@ -3457,7 +3456,6 @@ async function loadApprovalBadge() {
     badge.style.display = 'none';
     mobBadge.classList.remove('show');
   }
-  loadTransferBadge();
 }
 
 function setMobActive(el) {
@@ -3942,7 +3940,7 @@ async function openMISDetail(userId, userName) {
       <td>${t.description}</td>
       <td style="color:#64748b;font-size:12px">${t.assigned_by_name||'—'}</td>
       <td style="white-space:nowrap;font-size:12px">${fmtDate(t.due_date)}</td>
-      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
+      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':(t.status||'pending').charAt(0).toUpperCase()+(t.status||'pending').slice(1)}</span></td>
       ${t.status==='pending' && t.due_date < new Date().toISOString().split('T')[0]
         ? `<td style="color:#dc2626;font-size:11px;font-weight:600">⏰ Overdue</td>`
         : `<td></td>`}
@@ -4260,7 +4258,7 @@ async function openAllMISDetail(userId, userName) {
 
     ${emp.delegation.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%</div>
+      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score != null ? (emp.delegation.score > 0 ? '+' : '') + emp.delegation.score.toFixed(1) + '%' : '—'}</div>
       <div style="overflow-x:auto">
         <table style="font-size:12px">
           <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
@@ -4271,7 +4269,7 @@ async function openAllMISDetail(userId, userName) {
 
     ${emp.checklist.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%</div>
+      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score != null ? (emp.checklist.score > 0 ? '+' : '') + emp.checklist.score.toFixed(1) + '%' : '—'}</div>
       <div style="overflow-x:auto">
         <table style="font-size:12px">
           <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
@@ -4840,7 +4838,7 @@ async function syncFMSData() {
       📊 Header Row: <strong>${r.headerRow ?? r.header_row ?? '—'}</strong> &nbsp;·&nbsp; Total Data Rows: <strong>${r.totalRows}</strong>
     </div>
     <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">
-      Headers Found (${r.headers.length}):
+      Headers Found (${(r.headers||[]).length}):
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${r.sample?.length?'12px':'0'}">
       ${headerBadges}
@@ -5487,10 +5485,11 @@ async function saveFMS() {
 // ══════════════════════════════════════════════════════
 let fmsTasksActiveFmsId = null;
 let fmsTasksActiveStepId = null;
-let fmsTasksActiveStepData = null;
-let fmsTrainPaused = false;
 
 async function loadFMSTasks() {
+  fmsTasksActiveFmsId = null;
+  fmsTasksActiveStepId = null;
+  window._fmsByStep = {};
   document.getElementById('fmsTasksRefreshBtn').style.display = 'block';
   const sel = document.getElementById('fmsTasksSelect');
   const container = document.getElementById('fmsAllStepsContainer');
@@ -5542,7 +5541,7 @@ async function onFMSTasksSelect() {
   }
 
   const steps = data.steps || [];
-  window._fmsByStep = {};
+  window._fmsByStep = {}; // clear any previous FMS data
 
   if (!steps.length) {
     container.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No steps configured for this FMS.</div>';
