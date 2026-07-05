@@ -780,7 +780,7 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
     <div id="dashFMSSection" style="margin-top:18px;display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div style="font-size:16px;font-weight:700;color:#1e293b">📊 FMS Pending Tasks</div>
-        <button class="btn btn-outline btn-sm" onclick="loadDashFMS()">🔄 Refresh</button>
+        <button class="btn btn-outline btn-sm" onclick="clearApiCache();loadDashFMS()">🔄 Refresh</button>
       </div>
 
       <!-- v16: PC-only FMS step-detail panel — select FMS → step-wise pending counts -->
@@ -1012,7 +1012,7 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
     <div class="page-header">
       <h2>FMS Tasks</h2>
       <div id="fmsTasksRefreshBtn" style="display:none">
-        <button class="btn btn-outline btn-sm" onclick="loadFMSTasks()">🔄 Refresh</button>
+        <button class="btn btn-outline btn-sm" onclick="clearApiCache();loadFMSTasks()">🔄 Refresh</button>
       </div>
     </div>
 
@@ -3556,40 +3556,90 @@ async function saveProfile() {
 // ══════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════
-async function api(url,method='GET',body=null,_retries=2) {
-  const token = localStorage.getItem('authToken');
-  const opts={method, headers:{'Content-Type':'application/json'}, credentials:'include'};
-  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
-  if (body) opts.body=JSON.stringify(body);
-  let r;
+// ── Client-side API cache: GET responses 60s tak sessionStorage mein rehti hain ──
+// Page refresh pe bhi cache survive karta hai → repeated calls nahi hoti, app fast rehta hai.
+// Koi bhi save/update (POST/PUT/DELETE) hone pe pura cache clear → stale data kabhi nahi dikhega.
+const API_CACHE_TTL = 60000; // 60 sec (server ka apna 90s cache hai, isse fresh data possible bhi nahi)
+const _apiInflight = {}; // same URL ki parallel calls ek hi fetch share karengi
+
+function _apiCacheGet(url) {
   try {
-    r = await fetch(url, opts);
-  } catch(e) {
-    console.error('API fetch failed:', url, e);
-    return { error: 'Network error — server se connect nahi ho saka' };
-  }
-  if (r.status===401) {
-    localStorage.removeItem('authToken');
-    window.location.replace('/');
-    return {};
-  }
-  // 503 = server cold-starting, auto-retry up to 2 times with 3s delay
-  if (r.status===503 && _retries>0) {
-    showToast('Server start ho raha hai, retry ho rahi hai...','warning');
-    await new Promise(res=>setTimeout(res,3000));
-    return api(url,method,body,_retries-1);
-  }
-  try {
-    const data = await r.json();
-    // If server sent a JSON error body on non-200, surface it cleanly
-    if (!r.ok && !data.error) data.error = `HTTP ${r.status}`;
+    const raw = sessionStorage.getItem('apc:' + url);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts > API_CACHE_TTL) { sessionStorage.removeItem('apc:' + url); return null; }
     return data;
-  } catch(e) {
-    console.error('API error:', url, r.status, e);
-    if (r.status === 503) return { error: 'Server abhi available nahi hai (503) — thodi der baad try karein' };
-    if (r.status === 502) return { error: 'Server se connection nahi mila (502) — check karein server chal raha hai' };
-    return { error: `HTTP ${r.status}` };
+  } catch(e) { return null; }
+}
+function _apiCacheSet(url, data) {
+  try { sessionStorage.setItem('apc:' + url, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
+}
+function clearApiCache() {
+  try {
+    Object.keys(sessionStorage).forEach(k => { if (k.indexOf('apc:') === 0) sessionStorage.removeItem(k); });
+  } catch(e) {}
+}
+
+async function api(url,method='GET',body=null,_retries=2) {
+  // GET: cache check pehle — hit hua to network call hi nahi hogi
+  if (method === 'GET') {
+    const cached = _apiCacheGet(url);
+    if (cached !== null) return cached;
+    // Same URL already fetch ho rahi hai? Usi promise ka result use karo (duplicate call nahi)
+    if (_apiInflight[url]) return _apiInflight[url];
   }
+
+  const doFetch = async () => {
+    const token = localStorage.getItem('authToken');
+    const opts={method, headers:{'Content-Type':'application/json'}, credentials:'include'};
+    if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+    if (body) opts.body=JSON.stringify(body);
+    let r;
+    try {
+      r = await fetch(url, opts);
+    } catch(e) {
+      console.error('API fetch failed:', url, e);
+      return { error: 'Network error — server se connect nahi ho saka' };
+    }
+    if (r.status===401) {
+      localStorage.removeItem('authToken');
+      window.location.replace('/');
+      return {};
+    }
+    // 503 = server cold-starting, auto-retry up to 2 times with 3s delay
+    if (r.status===503 && _retries>0) {
+      showToast('Server start ho raha hai, retry ho rahi hai...','warning');
+      await new Promise(res=>setTimeout(res,3000));
+      return api(url,method,body,_retries-1);
+    }
+    try {
+      const data = await r.json();
+      // If server sent a JSON error body on non-200, surface it cleanly
+      if (!r.ok && !data.error) data.error = `HTTP ${r.status}`;
+      return data;
+    } catch(e) {
+      console.error('API error:', url, r.status, e);
+      if (r.status === 503) return { error: 'Server abhi available nahi hai (503) — thodi der baad try karein' };
+      if (r.status === 502) return { error: 'Server se connection nahi mila (502) — check karein server chal raha hai' };
+      return { error: `HTTP ${r.status}` };
+    }
+  };
+
+  if (method === 'GET') {
+    _apiInflight[url] = doFetch();
+    try {
+      const data = await _apiInflight[url];
+      if (data && !data.error) _apiCacheSet(url, data); // sirf successful responses cache hoti hain
+      return data;
+    } finally {
+      delete _apiInflight[url];
+    }
+  }
+
+  // POST/PUT/DELETE: data change hua — pura cache clear taaki fresh data dikhe
+  const result = await doFetch();
+  clearApiCache();
+  return result;
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -3602,6 +3652,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 async function logout() {
   await fetch('/api/logout',{method:'POST', credentials:'include'});
   localStorage.removeItem('authToken');
+  clearApiCache(); // dusre user ka data leak na ho
   window.location.replace('/');
 }
 
@@ -5609,6 +5660,7 @@ async function loadFMSStepRows(fmsId, stepId, stepObj) {
 async function refreshFMSStep(fmsId, stepId) {
   const btn = document.getElementById(`fmsStepRefreshBtn_${stepId}`);
   if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  try { sessionStorage.removeItem(`apc:/api/fms-tasks/${fmsId}/steps/${stepId}/rows`); } catch(e) {}
   const stepData = window._fmsByStep[stepId] || {};
   await loadFMSStepRows(fmsId, stepId, stepData.step || {});
   if (btn) { btn.textContent = '🔄 Refresh'; btn.disabled = false; }
