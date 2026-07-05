@@ -1934,17 +1934,17 @@ app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
       const isMyStep = req.session.role === 'admin' || doerIds.map(String).includes(myId);
       return {
         id: s.id || si+1,
-        step_name: s.stepName,
+        step_name: s.stepName || s.step_name || `Step ${si+1}`,
         step_order: si+1,
         doers: doerObjs,
         isMyStep,
-        planCol: s.planCol || '',
-        actualCol: s.actualCol || '',
-        delayReasonCol: s.delayReasonCol || '',
-        doerNameCol: s.doerNameCol || '',
-        showCols: s.showCols || [],
-        extraInput: s.extraInput || 'no',
-        extraRows: s.extraRows || []
+        planCol:        s.planCol        || s.plan_col        || '',
+        actualCol:      s.actualCol      || s.actual_col      || '',
+        delayReasonCol: s.delayReasonCol || s.delay_reason_col || '',
+        doerNameCol:    s.doerNameCol    || s.doer_name_col    || '',
+        showCols: Array.isArray(s.showCols) ? s.showCols : [],
+        extraInput: s.extraInput || s.extra_input || 'no',
+        extraRows: Array.isArray(s.extraRows) ? s.extraRows : []
       };
     });
     res.json({ sheet: fms, steps: enrichedSteps });

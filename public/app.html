@@ -4798,7 +4798,7 @@ async function saveEditFMS() {
   const r = await api(`/api/fms/${fmsActiveId}`,'PUT',{
     fmsName: fmsName || sheetName,
     sheetName, sheetId, headerRow,
-    steps: fmsSteps.map(s=>({...s, showCols:s.showCols||[], delayReasonCol:s.delayReasonCol||'', doerNameCol:s.doerNameCol||s.doer_name_col||'', extraRows:(s.extraRows||[]).map(r=>({...r,dropdown_options:r.dropdown_options||''}))}))
+    steps: fmsSteps.map((s,i)=>({...s, id: s.id||(i+1), showCols:s.showCols||[], delayReasonCol:s.delayReasonCol||'', doerNameCol:s.doerNameCol||s.doer_name_col||'', extraRows:(s.extraRows||[]).map(r=>({...r,dropdown_options:r.dropdown_options||''}))}))
   });
   if (r.error) { err.textContent=r.error; err.style.display='block'; return; }
 
@@ -5072,7 +5072,7 @@ function buildStepBoxHTML(idx) {
           ${blankOpt}${headers.map(h=>`<option value="${h.col}" ${s.planCol===h.col?'selected':''}>${h.name} (COL ${h.col})</option>`).join('')}
         </select>` : `
         <input type="text" value="${s.planCol||''}" placeholder="Column e.g. I"
-          oninput="fmsSteps[${idx}].planCol=this.value"
+          oninput="fmsSteps[${idx}].planCol=this.value.toUpperCase()"
           style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>`}
       </div>
       <div class="form-group" style="margin:0">
@@ -5082,7 +5082,7 @@ function buildStepBoxHTML(idx) {
           ${blankOpt}${headers.map(h=>`<option value="${h.col}" ${s.actualCol===h.col?'selected':''}>${h.name} (COL ${h.col})</option>`).join('')}
         </select>` : `
         <input type="text" value="${s.actualCol||''}" placeholder="Column e.g. J"
-          oninput="fmsSteps[${idx}].actualCol=this.value"
+          oninput="fmsSteps[${idx}].actualCol=this.value.toUpperCase()"
           style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>`}
       </div>
     </div>
@@ -5307,11 +5307,14 @@ function updateFMSDoerTags(idx) {
 }
 
 function setupMultiSelect(idx) {
-  document.addEventListener('click', function(e) {
+  const key = `_fmsCloseHandler_${idx}`;
+  if (window[key]) document.removeEventListener('click', window[key]);
+  window[key] = function(e) {
     const drop = document.getElementById(`fmsDoerDrop_${idx}`);
     const wrap = document.getElementById(`fmsDoerWrap_${idx}`);
     if (drop && wrap && !wrap.contains(e.target)) drop.classList.remove('open');
-  });
+  };
+  document.addEventListener('click', window[key]);
 }
 
 function getActiveFMSContainer() {
@@ -5414,6 +5417,7 @@ function refreshStepBox(idx) {
   if (boxes[idx]) {
     boxes[idx].innerHTML = buildStepBoxHTML(idx);
     setupMultiSelect(idx);
+    updateFMSDoerTags(idx);
   }
 }
 
@@ -5467,7 +5471,7 @@ async function saveFMS() {
     sheetId: fmsData.sheetId,
     headerRow: fmsData.headerRow,
     totalSteps: fmsSteps.length,
-    steps: fmsSteps.map(s=>({...s, showCols: s.showCols||[], delayReasonCol: s.delayReasonCol||'', doerNameCol: s.doerNameCol||s.doer_name_col||'', extraRows: (s.extraRows||[]).map(r=>({...r, dropdown_options: r.dropdown_options||''}))}))
+    steps: fmsSteps.map((s,i)=>({...s, id: s.id||(i+1), showCols: s.showCols||[], delayReasonCol: s.delayReasonCol||'', doerNameCol: s.doerNameCol||s.doer_name_col||'', extraRows: (s.extraRows||[]).map(r=>({...r, dropdown_options: r.dropdown_options||''}))}))
   };
 
   const r = await api('/api/fms', 'POST', body);
