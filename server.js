@@ -495,6 +495,26 @@ app.get('/api/me', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Bell notifications: apne pending checklist tasks jinki due date 2 din ke andar hai ──
+// Har user ko sirf apne tasks dikhte hain (role koi bhi ho) — "2 din pehle" wali heads-up.
+app.get('/api/notifications/upcoming', requireAuth, async (req, res) => {
+  try {
+    const db = await getDB();
+    const uid = String(req.session.userId);
+    const todayStr = today();
+    const max = new Date(); max.setDate(max.getDate() + 2);
+    const maxStr = max.toISOString().split('T')[0];
+    const allChl = await db.findAll('Checklist_Tasks');
+    const tasks = allChl
+      .filter(t => String(t.assigned_to) === uid
+        && t.status === 'pending'
+        && t.due_date && t.due_date >= todayStr && t.due_date <= maxStr)
+      .map(t => ({ id: parseInt(t.id), description: t.description || '', due_date: t.due_date }))
+      .sort((a, b) => a.due_date.localeCompare(b.due_date));
+    res.json({ count: tasks.length, tasks });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ══════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════
