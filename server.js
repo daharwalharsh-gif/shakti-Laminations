@@ -1464,23 +1464,30 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
           return false;
         });
 
+        // Value present/done = non-empty aur FALSE nahi
+        const isPresent = (v) => { const t=(v||'').trim(); return t!=='' && t.toUpperCase()!=='FALSE'; };
+
         fms.steps.forEach((step, si) => {
           if (!step.actualCol) return;
           const aIdx = colLetterToIdx(step.actualCol);
           const pIdx = colLetterToIdx(step.planCol || '');
 
-          // Previous steps' actualCol indices — all must be done before this step shows as pending
-          const prevActualIdxs = fms.steps.slice(0, si)
-            .map(s => colLetterToIdx(s.actualCol || ''))
-            .filter(i => i >= 0);
+          // Previous steps' plan + actual indices. Conditional FMS mein jis step ki plan date
+          // khaali ho wo us row pe skip hua hai → usse ignore karo.
+          const prevSteps = fms.steps.slice(0, si).map(s => ({
+            actualIdx: colLetterToIdx(s.actualCol || ''),
+            planIdx:   colLetterToIdx(s.planCol   || '')
+          }));
 
           dataRows.forEach((row, ri) => {
+            // Current step applicable tabhi jab uski plan date bhari ho (warna wo skip hai)
+            if (pIdx >= 0 && !isPresent(row[pIdx])) return;
             const actual = (row[aIdx]||'').trim();
             if (actual && actual.toUpperCase() !== 'FALSE') return; // already done
-            // Skip if any previous step is not yet done
-            for (const prevIdx of prevActualIdxs) {
-              const prevVal = (row[prevIdx]||'').trim();
-              if (!prevVal || prevVal.toUpperCase() === 'FALSE') return;
+            // Har applicable previous step (plan date present) done hona chahiye
+            for (const ps of prevSteps) {
+              const prevApplicable = ps.planIdx < 0 || isPresent(row[ps.planIdx]);
+              if (prevApplicable && ps.actualIdx >= 0 && !isPresent(row[ps.actualIdx])) return;
             }
             const planVal = pIdx>=0 ? (row[pIdx]||'').trim() : '';
 
@@ -2000,10 +2007,14 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     const actualIdx = colLetterToIdx(step.actualCol || '');
     const planIdx   = colLetterToIdx(step.planCol   || '');
 
-    // Pre-compute previous steps' actualCol indices
-    const prevStepActualIdxs = fms.steps.slice(0, stepIdx)
-      .map(s => colLetterToIdx(s.actualCol || ''))
-      .filter(i => i >= 0);
+    // Pre-compute previous steps' plan + actual column indices.
+    // Conditional FMS: sheet formulas fill a step's Plan date ONLY jab wo step us row pe
+    // applicable ho (jaise Status="Yes" hone pe beech ke steps skip ho jaate hain → unki
+    // plan date khaali). Isliye "applicable" step wahi jiski plan date bhari ho.
+    const prevSteps = fms.steps.slice(0, stepIdx).map(s => ({
+      actualIdx: colLetterToIdx(s.actualCol || ''),
+      planIdx:   colLetterToIdx(s.planCol   || '')
+    }));
 
     // Determine first-column check range for "real data" (skip pure-checkbox/formula-only rows)
     const hasRealData = (row) => {
@@ -2015,24 +2026,30 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
       return false;
     };
 
-    // A value counts as "done" if it's non-empty and not FALSE (checkbox unchecked)
+    // A value counts as "present/done" if non-empty and not FALSE (unchecked checkbox)
     const isDone = (val) => {
       const v = (val || '').trim();
       return v !== '' && v.toUpperCase() !== 'FALSE';
     };
 
-    // Filter: real data row + ALL previous steps done + current step pending
+    // Filter: real data + current step APPLICABLE (plan date present) + current step pending
+    // + har APPLICABLE previous step (jiski plan date bhari ho) done ho.
     const pending = rawDataRows
       .map((row, idx) => ({ row, sheetRow: headerRow + idx + 1 }))
       .filter(({ row }) => {
         if (!hasRealData(row)) return false;
-        // All previous steps must be done
-        for (const prevIdx of prevStepActualIdxs) {
-          if (!isDone(row[prevIdx])) return false;
+        // Current step is skipped/inactive for this row if its plan date is empty → hide.
+        // (Agar planCol configured hi nahi hai to ye check skip — purana behaviour.)
+        if (planIdx >= 0 && !isDone(row[planIdx])) return false;
+        // Current step already done? → not pending.
+        if (actualIdx >= 0 && isDone(row[actualIdx])) return false;
+        // Every applicable previous step (plan date present) must be done.
+        // Skipped previous steps (no plan date) are ignored — flow branch ke around jaate hain.
+        for (const ps of prevSteps) {
+          const prevApplicable = ps.planIdx < 0 || isDone(row[ps.planIdx]);
+          if (prevApplicable && ps.actualIdx >= 0 && !isDone(row[ps.actualIdx])) return false;
         }
-        // Current step must be pending
-        if (actualIdx < 0) return true;
-        return !isDone(row[actualIdx]);
+        return true;
       });
 
     // Apply showCols filter to determine which columns to show in table
