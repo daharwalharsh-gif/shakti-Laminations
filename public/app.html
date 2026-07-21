@@ -1046,6 +1046,13 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
         style="flex:1;min-width:200px;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff">
         <option value="">-- Select an FMS --</option>
       </select>
+      <a id="fmsSheetLink" href="#" target="_blank" rel="noopener"
+        style="display:none;align-items:center;gap:6px;padding:9px 14px;border-radius:8px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;text-decoration:none;color:#15803d;background:#f0fdf4;border:1.5px solid #bbf7d0;white-space:nowrap;transition:all .2s"
+        onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'"
+        title="Is FMS ki Google Sheet naye tab mein kholein">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Open Sheet
+      </a>
     </div>
 
     <!-- All Steps Container (replaces train) -->
@@ -5638,6 +5645,8 @@ async function loadFMSTasks() {
   container.style.display = 'none';
   container.innerHTML = '';
   emptyEl.style.display = 'none';
+  const sheetLink = document.getElementById('fmsSheetLink');
+  if (sheetLink) sheetLink.style.display = 'none';
 
   const list = await api('/api/fms-tasks');
   if (list.error) {
@@ -5663,11 +5672,21 @@ async function loadFMSTasks() {
   }
 }
 
+// FMS sheet_id (raw ID ya full URL) se Google Sheet ka open URL banao
+function buildSheetUrl(sheetId) {
+  if (!sheetId) return '';
+  const raw = String(sheetId).trim();
+  const m = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  const id = m ? m[1] : raw;
+  return `https://docs.google.com/spreadsheets/d/${id}/edit`;
+}
+
 async function onFMSTasksSelect() {
   const fmsId = document.getElementById('fmsTasksSelect').value;
   const container = document.getElementById('fmsAllStepsContainer');
+  const sheetLink = document.getElementById('fmsSheetLink');
 
-  if (!fmsId) { container.style.display = 'none'; return; }
+  if (!fmsId) { container.style.display = 'none'; if (sheetLink) sheetLink.style.display = 'none'; return; }
 
   fmsTasksActiveFmsId = parseInt(fmsId);
   container.style.display = 'block';
@@ -5677,6 +5696,13 @@ async function onFMSTasksSelect() {
   if (data.error) {
     container.innerHTML = `<div style="color:#ef4444;padding:20px;background:#fff;border-radius:12px;border:1px solid #fecaca">⚠️ ${data.error}</div>`;
     return;
+  }
+
+  // Google Sheet link dikhao — click pe naye tab mein sheet khulegi
+  if (sheetLink) {
+    const url = buildSheetUrl(data.sheet && data.sheet.sheet_id);
+    if (url) { sheetLink.href = url; sheetLink.style.display = 'inline-flex'; }
+    else sheetLink.style.display = 'none';
   }
 
   const steps = data.steps || [];
