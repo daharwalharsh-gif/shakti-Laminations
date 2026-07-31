@@ -1784,6 +1784,28 @@ async function ensureFMSConfigTab(d) {
   }
 }
 
+// Helper: ensure System_Links tab exists in main spreadsheet ("All Systems" links)
+async function ensureSystemLinksTab(d) {
+  try {
+    await d.findAll('System_Links');
+  } catch(e) {
+    try {
+      await withRetry(() => d.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        requestBody: { requests: [{ addSheet: { properties: { title: 'System_Links' } } }] }
+      }));
+    } catch(e2) { /* already exists race */ }
+    await withRetry(() => d.sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: 'System_Links!A1:D1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [['id','name','url','created_at']] }
+    }));
+    delete d._hdrCache['System_Links'];
+    delete d._cache['System_Links'];
+  }
+}
+
 // Parse FMS row from sheet
 function parseFMSRow(row) {
   let steps = [];
@@ -2129,6 +2151,50 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
     if (msg.includes('403')) msg = 'Access denied — sheet ko service account ke saath Editor access de';
     res.status(500).json({ error: msg });
   }
+});
+
+// ══════════════════════════════════════════════════════
+// SYSTEM LINKS — "All Systems" page (admin curates, sabko dikhta hai)
+// ══════════════════════════════════════════════════════
+// GET /api/links — sab links (koi bhi logged-in user dekh sakta hai)
+app.get('/api/links', requireAuth, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureSystemLinksTab(d);
+    const rows = await d.findAll('System_Links');
+    const links = rows
+      .filter(r => (r.name || '').trim() || (r.url || '').trim())
+      .map(r => ({ id: parseInt(r.id), name: r.name || '', url: r.url || '', created_at: r.created_at || '' }))
+      .sort((a, b) => a.id - b.id);
+    res.json(links);
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/links — naya link add karo (sirf admin)
+app.post('/api/links', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureSystemLinksTab(d);
+    let { name, url } = req.body;
+    name = (name || '').trim();
+    url = (url || '').trim();
+    if (!name || !url) return res.status(400).json({ error: 'Name aur link dono zaroori hain' });
+    // Protocol nahi diya to https:// laga do
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    const nowStr = new Date().toISOString().replace('T', ' ').split('.')[0];
+    const inserted = await d.insert('System_Links', { name, url, created_at: nowStr });
+    res.json({ id: parseInt(inserted.id), name, url, created_at: nowStr });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/links/:id — link hatao (sirf admin)
+app.delete('/api/links/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureSystemLinksTab(d);
+    await d.delete('System_Links', req.params.id);
+    res.json({ success: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 // ══════════════════════════════════════════════════════
