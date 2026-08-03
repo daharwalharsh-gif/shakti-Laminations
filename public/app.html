@@ -954,27 +954,15 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
       <div class="kpi k-fms" onclick="ownDrillKpi('fms')" title="Click for details"><div class="k-label">FMS Pending</div><div class="k-num" id="kpiFms">—</div><div class="k-sub" id="kpiFmsSub">across all steps</div><div class="k-ico">🏭</div></div>
     </div>
 
-    <!-- Charts -->
+    <!-- Charts: 2 task pies + FMS (as-is) -->
     <div class="own-charts">
-      <div class="chart-box wide">
-        <h3>📈 Task Trend (by due date)</h3>
-        <div class="chart-holder"><canvas id="ownLineChart"></canvas></div>
-      </div>
       <div class="chart-box">
-        <h3>🍩 Task Status Breakdown</h3>
+        <h3>🍩 Task Status (Completed / Pending / Overdue)</h3>
         <div class="chart-holder"><canvas id="ownStatusChart"></canvas></div>
       </div>
       <div class="chart-box">
-        <h3>📊 Delegation vs Checklist</h3>
+        <h3>🥧 Delegation vs Checklist</h3>
         <div class="chart-holder"><canvas id="ownTypeChart"></canvas></div>
-      </div>
-      <div class="chart-box">
-        <h3>🏢 Department-wise Load</h3>
-        <div class="chart-holder"><canvas id="ownDeptChart"></canvas></div>
-      </div>
-      <div class="chart-box">
-        <h3>🏆 Employee Scores</h3>
-        <div class="chart-holder"><canvas id="ownScoreChart"></canvas></div>
       </div>
       <div class="chart-box wide">
         <h3>🏭 FMS — Step-wise Pending vs Done</h3>
@@ -3702,14 +3690,12 @@ async function loadOwnerDashboard(){
   document.getElementById('ownMisTbody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">⏳ Loading...</td></tr>';
   document.getElementById('ownFmsDetail').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">⏳ Loading FMS steps...</div>';
 
-  // Phase 1: tasks + timeseries + full task list (main sheet — fast)
-  const [rows, ts, tk] = await Promise.all([
+  // Phase 1: MIS aggregates + full task list (main sheet — fast)
+  const [rows, tk] = await Promise.all([
     api(`/api/mis/all?start=${start}&end=${end}`),
-    api(`/api/owner/timeseries?start=${start}&end=${end}`),
     api(`/api/owner/tasks?start=${start}&end=${end}`)
   ]);
   _ownCache.rows = Array.isArray(rows) ? rows : [];
-  _ownCache.series = (ts && ts.series) ? ts.series : [];
   _ownCache.tasks = (tk && tk.tasks) ? tk.tasks : [];
   _ownCache.fms = []; // reset; fms phase 2 me aayega
   populateOwnDept(_ownCache.rows);
@@ -3734,11 +3720,8 @@ function _ownCurrentRows(){
 function renderOwnerFromCache(){
   const rows = _ownCurrentRows();
   renderOwnKpis(rows, _ownCache.fms);
-  renderOwnLine(_ownCache.series);
   renderOwnStatus(rows);
   renderOwnType(rows);
-  renderOwnDept(_ownCache.rows);
-  renderOwnScore(rows);
   renderOwnFmsChart(_ownCache.fms);
   renderOwnMisTable(rows);
   renderOwnFmsDetail(_ownCache.fms);
@@ -3790,25 +3773,24 @@ function renderOwnLine(series){
 function _ownHoverPtr(e, els){ if(e && e.native && e.native.target) e.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
 
 function renderOwnStatus(rows){
-  let done=0,pend=0,rev=0;
-  for (const r of rows){ done+=r.completedAll||0; pend+=r.pendingAll||0; rev+=r.revisedAll||0; }
-  _ownChart('ownStatusChart', { type:'doughnut', data:{ labels:['Completed','Pending','Revised'],
-    datasets:[{ data:[done,pend,rev], backgroundColor:['#10b981','#ef4444','#f59e0b'], borderColor:'#fff', borderWidth:3, hoverOffset:6 }] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', onHover:_ownHoverPtr,
-      onClick:(e,els)=>{ if(els.length) ownDrillStatus(['completed','pending','revised'][els[0].index]); },
-      plugins:{legend:{position:'bottom'}} } });
+  let done=0,pendAll=0,over=0;
+  for (const r of rows){ done+=r.completedAll||0; pendAll+=r.pendingAll||0; over+=r.overdueAll||0; }
+  const pendOnTime = Math.max(0, pendAll - over); // pending jo abhi late nahi hue
+  _ownChart('ownStatusChart', { type:'pie', data:{ labels:['Completed','Pending','Overdue'],
+    datasets:[{ data:[done, pendOnTime, over], backgroundColor:['#10b981','#f59e0b','#ef4444'], borderColor:'#fff', borderWidth:3, hoverOffset:8 }] },
+    options:{ responsive:true, maintainAspectRatio:false, onHover:_ownHoverPtr,
+      onClick:(e,els)=>{ if(els.length){ const k=['completed','pending','overdue'][els[0].index]; k==='overdue'?ownDrillKpi('overdue'):ownDrillStatus(k); } },
+      plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw}`}}} } });
 }
 
 function renderOwnType(rows){
-  let dDone=0,dPend=0,dRev=0,cDone=0,cPend=0;
-  for (const r of rows){ const d=r.delegation||{},c=r.checklist||{}; dDone+=d.completed||0; dPend+=d.pending||0; dRev+=d.revised||0; cDone+=c.completed||0; cPend+=c.pending||0; }
-  _ownChart('ownTypeChart', { type:'bar', data:{ labels:['Delegation','Checklist'], datasets:[
-    {label:'Completed', data:[dDone,cDone], backgroundColor:'#10b981'},
-    {label:'Pending', data:[dPend,cPend], backgroundColor:'#ef4444'},
-    {label:'Revised', data:[dRev,0], backgroundColor:'#f59e0b'}
-  ]}, options:{ responsive:true, maintainAspectRatio:false, onHover:_ownHoverPtr,
-    onClick:(e,els)=>{ if(els.length) ownDrillType(['delegation','checklist'][els[0].index]); },
-    scales:{ x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{precision:0}} }, plugins:{legend:{position:'top'}} } });
+  let dTot=0,cTot=0;
+  for (const r of rows){ dTot+=(r.delegation&&r.delegation.total)||0; cTot+=(r.checklist&&r.checklist.total)||0; }
+  _ownChart('ownTypeChart', { type:'pie', data:{ labels:['Delegation','Checklist'],
+    datasets:[{ data:[dTot,cTot], backgroundColor:['#3b82f6','#8b5cf6'], borderColor:'#fff', borderWidth:3, hoverOffset:8 }] },
+    options:{ responsive:true, maintainAspectRatio:false, onHover:_ownHoverPtr,
+      onClick:(e,els)=>{ if(els.length) ownDrillType(['delegation','checklist'][els[0].index]); },
+      plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw} tasks`}}} } });
 }
 
 function renderOwnDept(allRows){
