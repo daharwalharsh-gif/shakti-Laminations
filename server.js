@@ -1244,6 +1244,11 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
     try { await ensureFMSConfigTab(d); fmsList = await d.findAll('FMS_Config'); } catch(e) { return res.json([]); }
     if (!fmsList.length) return res.json([]);
 
+    // Doer IDs → names ke liye user map
+    const allUsers = await d.findAll('Users');
+    const userMap = {};
+    for (const u of allUsers) userMap[String(u.id)] = u;
+
     const todayStr = today();
     const result = [];
 
@@ -1296,7 +1301,9 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
             pending++;
             if (plan && plan < todayStr) late++;
           }
-          const doerNames = Array.isArray(step.doers) ? step.doers.join(', ') : (step.doers||'');
+          const doerNames = Array.isArray(step.doers)
+            ? (step.doers.map(id => userMap[String(id)]?.name || id).join(', ') || '—')
+            : (step.doers||'');
           return {
             stepId: step.id || si+1,
             stepOrder: si+1,

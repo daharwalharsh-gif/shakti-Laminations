@@ -987,7 +987,7 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
 
     <!-- FMS steps detail -->
     <div class="own-card">
-      <h3>🏭 FMS — Har Step Kaha Pohcha</h3>
+      <h3>🏭 FMS — Where Each Step Stands</h3>
       <div id="ownFmsDetail"><div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">⏳ Loading FMS steps...</div></div>
     </div>
   </div>
@@ -3701,7 +3701,7 @@ async function loadOwnerDashboard(){
   populateOwnDept(_ownCache.rows);
   renderOwnerFromCache();
   document.getElementById('kpiFms').textContent = '⏳';
-  document.getElementById('ownFmsDetail').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">⏳ FMS sheets load ho rahi hain...</div>';
+  document.getElementById('ownFmsDetail').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">⏳ Loading FMS sheets...</div>';
 
   // Phase 2: FMS (external sheets — slower)
   const fms = await api('/api/mis/fms');
@@ -3856,7 +3856,7 @@ function renderOwnMisTable(rows){
 
 function renderOwnFmsDetail(fms){
   const box=document.getElementById('ownFmsDetail');
-  if(!fms || !fms.length){ box.innerHTML='<div style="text-align:center;color:#94a3b8;padding:16px;font-size:13px">Koi FMS data nahi (ya external sheets abhi load nahi hue).</div>'; return; }
+  if(!fms || !fms.length){ box.innerHTML='<div style="text-align:center;color:#94a3b8;padding:16px;font-size:13px">No FMS data (or external sheets not loaded yet).</div>'; return; }
   box.innerHTML = fms.map(f=>{
     const steps=(f.steps||[]);
     const rowsHtml = steps.map(st=>{
@@ -3901,7 +3901,7 @@ function openOwnDetail(title, bodyHtml, countText){
 }
 
 function _ownTaskTable(tasks){
-  if(!tasks.length) return '<div style="text-align:center;color:#94a3b8;padding:24px">Koi task nahi mila.</div>';
+  if(!tasks.length) return '<div style="text-align:center;color:#94a3b8;padding:24px">No tasks found.</div>';
   return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
     <thead><tr>
       <th style="padding:7px 9px;text-align:left;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#64748b">Type</th>
@@ -3976,7 +3976,7 @@ function ownFmsPendingList(){
   const fms = _ownCache.fms || [];
   const items = [];
   fms.forEach(f => (f.steps||[]).forEach(st => { if((st.pending||0)>0) items.push({f, st}); }));
-  if(!items.length){ openOwnDetail('🏭 FMS Pending Steps', '<div style="text-align:center;color:#22c55e;padding:24px;font-weight:600">✅ Koi FMS step pending nahi!</div>'); return; }
+  if(!items.length){ openOwnDetail('🏭 FMS Pending Steps', '<div style="text-align:center;color:#22c55e;padding:24px;font-weight:600">✅ No FMS steps pending!</div>'); return; }
   const html = items.map(({f,st})=>`
     <div class="fms-step-row" style="cursor:pointer" onclick="ownDrillFmsStep(${f.fmsId},${st.stepId},'${_escHtml(st.stepName).replace(/'/g,"\\'")}',${st.pending})">
       <div class="fms-step-num">${st.stepOrder}</div>
@@ -3997,7 +3997,7 @@ async function ownDrillFmsStep(fmsId, stepId, stepName, pending){
   if(r && r.error){ body.innerHTML = `<div style="color:#dc2626;padding:16px">⚠️ ${_escHtml(r.error)}</div>`; return; }
   const rows = (r && r.rows) ? r.rows : [];
   document.getElementById('ownDetailCount').textContent = rows.length+' pending row(s)';
-  if(!rows.length){ body.innerHTML = '<div style="text-align:center;color:#22c55e;padding:22px;font-weight:600">✅ Is step ka koi pending row nahi</div>'; return; }
+  if(!rows.length){ body.innerHTML = '<div style="text-align:center;color:#22c55e;padding:22px;font-weight:600">✅ No pending rows for this step</div>'; return; }
   const cols = Object.keys(rows[0].data||{});
   body.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
     <thead><tr>${cols.map(c=>`<th style="padding:7px 10px;text-align:left;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap;color:#374151">${_escHtml(c)}</th>`).join('')}</tr></thead>
