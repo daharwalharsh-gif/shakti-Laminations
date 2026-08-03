@@ -933,6 +933,12 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
         </select>
       </div>
       <div class="fld">
+        <label>Doer</label>
+        <select id="ownDoer" onchange="renderOwnerFromCache()">
+          <option value="">All Doers</option>
+        </select>
+      </div>
+      <div class="fld">
         <label>Quick Range</label>
         <select id="ownQuick" onchange="ownQuickRange(this.value)">
           <option value="30">Last 30 days</option>
@@ -3699,6 +3705,7 @@ async function loadOwnerDashboard(){
   _ownCache.tasks = (tk && tk.tasks) ? tk.tasks : [];
   _ownCache.fms = []; // reset; fms phase 2 me aayega
   populateOwnDept(_ownCache.rows);
+  populateOwnDoer();
   renderOwnerFromCache();
   document.getElementById('kpiFms').textContent = '⏳';
   document.getElementById('ownFmsDetail').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">⏳ Loading FMS sheets...</div>';
@@ -3706,25 +3713,46 @@ async function loadOwnerDashboard(){
   // Phase 2: FMS (external sheets — slower)
   const fms = await api('/api/mis/fms');
   _ownCache.fms = Array.isArray(fms) ? fms : [];
-  renderOwnKpis(_ownCurrentRows(), _ownCache.fms);
-  renderOwnFmsChart(_ownCache.fms);
-  renderOwnFmsDetail(_ownCache.fms);
+  populateOwnDoer(); // ab FMS-only doers bhi dropdown me add ho jayenge
+  const ffms = _ownFilteredFms();
+  renderOwnKpis(_ownCurrentRows(), ffms);
+  renderOwnFmsChart(ffms);
+  renderOwnFmsDetail(ffms);
 }
+
+function _ownDeptVal(){ return document.getElementById('ownDept').value; }
+function _ownDoerVal(){ return document.getElementById('ownDoer').value; }
 
 function _ownCurrentRows(){
-  const dept = document.getElementById('ownDept').value;
-  return dept ? _ownCache.rows.filter(r => (r.department||'') === dept) : _ownCache.rows;
+  const dept = _ownDeptVal(), doer = _ownDoerVal();
+  return _ownCache.rows.filter(r =>
+    (!dept || (r.department||'') === dept) &&
+    (!doer || (r.name||'') === doer));
 }
 
-// Dept dropdown change → sirf re-render (dobara fetch nahi)
+// FMS ko selected doer ke hisaab se filter — sirf un steps ko rakho jinke doers me wo person ho
+function _ownFilteredFms(){
+  const doer = _ownDoerVal();
+  if (!doer) return _ownCache.fms;
+  return (_ownCache.fms || []).map(f => {
+    const steps = (f.steps||[]).filter(st => String(st.doers||'').split(',').map(x=>x.trim()).includes(doer));
+    if (!steps.length) return null;
+    const pending = steps.reduce((a,s)=>a+(s.pending||0),0);
+    const done = steps.reduce((a,s)=>a+(s.done||0),0);
+    return { ...f, steps, pending, done, totalPending: pending, totalDone: done };
+  }).filter(Boolean);
+}
+
+// Filter dropdown change → sirf re-render (dobara fetch nahi)
 function renderOwnerFromCache(){
   const rows = _ownCurrentRows();
-  renderOwnKpis(rows, _ownCache.fms);
+  const fms = _ownFilteredFms();
+  renderOwnKpis(rows, fms);
   renderOwnStatus(rows);
   renderOwnType(rows);
-  renderOwnFmsChart(_ownCache.fms);
+  renderOwnFmsChart(fms);
   renderOwnMisTable(rows);
-  renderOwnFmsDetail(_ownCache.fms);
+  renderOwnFmsDetail(fms);
 }
 
 function ownQuickRange(v){
@@ -3742,6 +3770,18 @@ function populateOwnDept(rows){
   const depts = [...new Set(rows.map(r => (r.department||'').trim()).filter(Boolean))].sort();
   sel.innerHTML = '<option value="">All Departments</option>' +
     depts.map(d => `<option value="${d}"${d===cur?' selected':''}>${d}</option>`).join('');
+}
+
+// Doer dropdown — task doers + FMS step doers, sab names ka union
+function populateOwnDoer(){
+  const sel = document.getElementById('ownDoer'); if(!sel) return; const cur = sel.value;
+  const names = new Set();
+  (_ownCache.rows||[]).forEach(r => { if(r.name) names.add(String(r.name).trim()); });
+  (_ownCache.tasks||[]).forEach(t => { if(t.assignedToName) names.add(String(t.assignedToName).trim()); });
+  (_ownCache.fms||[]).forEach(f => (f.steps||[]).forEach(st => String(st.doers||'').split(',').forEach(n => { const x=n.trim(); if(x && x!=='—') names.add(x); })));
+  const list = [...names].filter(Boolean).sort();
+  sel.innerHTML = '<option value="">All Doers</option>' +
+    list.map(n => `<option value="${n}"${n===cur?' selected':''}>${n}</option>`).join('');
 }
 
 function renderOwnKpis(rows, fms){
@@ -3889,8 +3929,10 @@ function renderOwnFmsDetail(fms){
 const _ownMap = {}; // chart index → filter maps
 
 function _ownTasksScope(){
-  const dept = document.getElementById('ownDept').value;
-  return dept ? _ownCache.tasks.filter(t => (t.department||'') === dept) : _ownCache.tasks;
+  const dept = _ownDeptVal(), doer = _ownDoerVal();
+  return _ownCache.tasks.filter(t =>
+    (!dept || (t.department||'') === dept) &&
+    (!doer || (t.assignedToName||'') === doer));
 }
 
 function openOwnDetail(title, bodyHtml, countText){
@@ -3973,7 +4015,7 @@ function ownScoreList(){
 }
 
 function ownFmsPendingList(){
-  const fms = _ownCache.fms || [];
+  const fms = _ownFilteredFms();
   const items = [];
   fms.forEach(f => (f.steps||[]).forEach(st => { if((st.pending||0)>0) items.push({f, st}); }));
   if(!items.length){ openOwnDetail('🏭 FMS Pending Steps', '<div style="text-align:center;color:#22c55e;padding:24px;font-weight:600">✅ No FMS steps pending!</div>'); return; }
