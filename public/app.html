@@ -609,6 +609,47 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
   /* ── TOAST ── */
   #toast{bottom:78px !important;}
 }
+
+/* ══════════════════════════════════════
+   OWNER DASHBOARD
+══════════════════════════════════════ */
+.own-filterbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:16px;}
+.own-filterbar .fld{display:flex;flex-direction:column;gap:4px;}
+.own-filterbar label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;}
+.own-filterbar input,.own-filterbar select{padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff;}
+.own-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+.kpi{position:relative;overflow:hidden;border-radius:14px;padding:16px 18px;color:#fff;box-shadow:0 4px 14px rgba(15,23,42,.10);cursor:pointer;transition:transform .15s,box-shadow .15s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,23,42,.20);}
+.kpi:active{transform:translateY(0);}
+.kpi .k-label{font-size:12px;font-weight:600;opacity:.92;letter-spacing:.3px;}
+.kpi .k-num{font-size:30px;font-weight:800;line-height:1.1;margin-top:6px;}
+.kpi .k-sub{font-size:11px;opacity:.85;margin-top:3px;}
+.kpi .k-ico{position:absolute;right:-6px;bottom:-8px;font-size:52px;opacity:.16;line-height:1;}
+.kpi.k-total{background:linear-gradient(135deg,#1a56db,#3b82f6);}
+.kpi.k-done{background:linear-gradient(135deg,#059669,#10b981);}
+.kpi.k-pend{background:linear-gradient(135deg,#dc2626,#f87171);}
+.kpi.k-over{background:linear-gradient(135deg,#b45309,#f59e0b);}
+.kpi.k-score{background:linear-gradient(135deg,#7c3aed,#a78bfa);}
+.kpi.k-fms{background:linear-gradient(135deg,#0e7490,#22d3ee);}
+.own-charts{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px;}
+.chart-box{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(15,23,42,.04);min-width:0;}
+.chart-box h3{font-size:14px;font-weight:700;color:#1e293b;margin:0 0 12px 0;}
+.chart-box.wide{grid-column:1/-1;}
+.chart-holder{position:relative;height:260px;}
+.own-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(15,23,42,.04);margin-bottom:16px;}
+.own-card h3{font-size:15px;font-weight:700;color:#1e293b;margin:0 0 12px 0;}
+.own-mis-table{width:100%;border-collapse:collapse;font-size:13px;}
+.own-mis-table th{padding:9px 10px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.3px;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap;position:sticky;top:0;}
+.own-mis-table td{padding:9px 10px;border-bottom:1px solid #f1f5f9;color:#334155;}
+.own-mis-table tr:hover td{background:#f8fafc;}
+.score-pill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:800;}
+.fms-step-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;flex-wrap:wrap;}
+.fms-step-num{width:26px;height:26px;border-radius:50%;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mini-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;}
+@media(max-width:820px){
+  .own-charts{grid-template-columns:1fr;}
+  .chart-holder{height:230px;}
+}
 </style>
 </head>
 <body>
@@ -666,6 +707,10 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
     <div class="nav-item active" onclick="navigate('dashboard',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
       <span class="nav-label-text">Dashboard</span>
+    </div>
+    <div class="nav-item" id="nav-owner" style="display:none" onclick="navigate('owner',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      <span class="nav-label-text">Owner</span>
     </div>
     <div class="nav-item" onclick="navigate('alltasks',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
@@ -862,6 +907,101 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
       </div>
     </div>
 
+  </div>
+
+  <!-- ── OWNER DASHBOARD ── -->
+  <div id="page-owner" class="page">
+    <div class="page-header">
+      <h2>👑 Owner Dashboard</h2>
+      <button class="btn btn-outline btn-sm" onclick="clearApiCache();loadOwnerDashboard()">🔄 Refresh</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="own-filterbar">
+      <div class="fld">
+        <label>From</label>
+        <input type="date" id="ownStart" onchange="loadOwnerDashboard()">
+      </div>
+      <div class="fld">
+        <label>To</label>
+        <input type="date" id="ownEnd" onchange="loadOwnerDashboard()">
+      </div>
+      <div class="fld">
+        <label>Department</label>
+        <select id="ownDept" onchange="renderOwnerFromCache()">
+          <option value="">All Departments</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label>Quick Range</label>
+        <select id="ownQuick" onchange="ownQuickRange(this.value)">
+          <option value="30">Last 30 days</option>
+          <option value="7">Last 7 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="mtd">This Month</option>
+          <option value="ytd">This Year</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- KPI tiles -->
+    <div class="own-kpis" id="ownKpis">
+      <div class="kpi k-total" onclick="ownDrillKpi('total')" title="Click for details"><div class="k-label">Total Tasks</div><div class="k-num" id="kpiTotal">—</div><div class="k-sub" id="kpiTotalSub"></div><div class="k-ico">📋</div></div>
+      <div class="kpi k-done" onclick="ownDrillKpi('completed')" title="Click for details"><div class="k-label">Completed</div><div class="k-num" id="kpiDone">—</div><div class="k-sub" id="kpiDoneSub"></div><div class="k-ico">✅</div></div>
+      <div class="kpi k-pend" onclick="ownDrillKpi('pending')" title="Click for details"><div class="k-label">Pending</div><div class="k-num" id="kpiPend">—</div><div class="k-sub" id="kpiPendSub"></div><div class="k-ico">⏳</div></div>
+      <div class="kpi k-over" onclick="ownDrillKpi('overdue')" title="Click for details"><div class="k-label">Overdue</div><div class="k-num" id="kpiOver">—</div><div class="k-sub">past due date</div><div class="k-ico">⚠️</div></div>
+      <div class="kpi k-score" onclick="ownDrillKpi('score')" title="Click for details"><div class="k-label">Avg Score</div><div class="k-num" id="kpiScore">—</div><div class="k-sub">MIS overall</div><div class="k-ico">🎯</div></div>
+      <div class="kpi k-fms" onclick="ownDrillKpi('fms')" title="Click for details"><div class="k-label">FMS Pending</div><div class="k-num" id="kpiFms">—</div><div class="k-sub" id="kpiFmsSub">across all steps</div><div class="k-ico">🏭</div></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="own-charts">
+      <div class="chart-box wide">
+        <h3>📈 Task Trend (by due date)</h3>
+        <div class="chart-holder"><canvas id="ownLineChart"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>🍩 Task Status Breakdown</h3>
+        <div class="chart-holder"><canvas id="ownStatusChart"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>📊 Delegation vs Checklist</h3>
+        <div class="chart-holder"><canvas id="ownTypeChart"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>🏢 Department-wise Load</h3>
+        <div class="chart-holder"><canvas id="ownDeptChart"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>🏆 Employee Scores</h3>
+        <div class="chart-holder"><canvas id="ownScoreChart"></canvas></div>
+      </div>
+      <div class="chart-box wide">
+        <h3>🏭 FMS — Step-wise Pending vs Done</h3>
+        <div class="chart-holder" style="height:300px"><canvas id="ownFmsChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- MIS score table -->
+    <div class="own-card">
+      <h3>🎯 MIS Report — Employee Scores</h3>
+      <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
+        <table class="own-mis-table">
+          <thead><tr>
+            <th>Employee</th><th>Dept</th>
+            <th>Deleg. (P/T)</th><th>Checklist (P/T)</th>
+            <th>Overdue</th><th>Revised</th><th>Completed</th><th>Score</th>
+          </tr></thead>
+          <tbody id="ownMisTbody"><tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">⏳ Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- FMS steps detail -->
+    <div class="own-card">
+      <h3>🏭 FMS — Har Step Kaha Pohcha</h3>
+      <div id="ownFmsDetail"><div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">⏳ Loading FMS steps...</div></div>
+    </div>
   </div>
 
   <!-- ── ALL TASKS ── -->
@@ -1206,6 +1346,20 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
     <div id="recDetailBody" style="margin-top:12px"></div>
     <div style="margin-top:18px;text-align:right">
       <button class="btn btn-outline" onclick="closeModal('recordDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Owner Dashboard drill-down detail modal -->
+<div class="modal-overlay" id="ownDetailModal">
+  <div class="modal" style="width:760px;max-width:96vw">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <h3 id="ownDetailTitle" style="margin:0">Details</h3>
+      <span id="ownDetailCount" style="font-size:12px;font-weight:700;color:#64748b"></span>
+    </div>
+    <div id="ownDetailBody" style="margin-top:14px;max-height:60vh;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('ownDetailModal')">Close</button>
     </div>
   </div>
 </div>
@@ -2047,6 +2201,7 @@ async function init() {
     setAvatarDisplay(ME.profile_image, initials);
 
     if (ME.role === 'admin') {
+      document.getElementById('nav-owner').style.display = 'flex';
       document.getElementById('nav-users').style.display = 'flex';
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('nav-fms').style.display = 'flex';
@@ -2141,7 +2296,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records','all-systems':'All Systems'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records','all-systems':'All Systems'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -2154,6 +2309,7 @@ function navigate(page, el) {
   document.querySelectorAll('.mob-nav-item').forEach(b=>b.classList.remove('active'));
   if (mobMap[page]) { const mb=document.getElementById(mobMap[page]); if(mb) mb.classList.add('active'); }
   if (page==='dashboard') loadDashboard();
+  if (page==='owner') loadOwnerDashboard();
   if (page==='alltasks') loadAllTasks();
   if (page==='users') loadUsers();
   if (page==='approvals') loadApprovals();
@@ -3510,6 +3666,362 @@ async function uploadUsersCSV() {
   loadUsers();
 }
 
+
+// ══════════════════════════════════════════════════════
+// OWNER DASHBOARD — sab kuch ek jagah (checklist + delegation + MIS + FMS)
+// ══════════════════════════════════════════════════════
+const _ownCharts = {};
+let _ownCache = { rows: [], series: [], fms: [], tasks: [] };
+
+function _ownFmtISO(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+
+function _ownScoreColor(s){
+  if (s == null) return { bg:'#f1f5f9', c:'#64748b' };
+  if (s >= -15) return { bg:'#dcfce7', c:'#15803d' };
+  if (s >= -40) return { bg:'#fef9c3', c:'#a16207' };
+  return { bg:'#fee2e2', c:'#b91c1c' };
+}
+
+function _ownChart(id, config){
+  if (_ownCharts[id]) { _ownCharts[id].destroy(); delete _ownCharts[id]; }
+  const el = document.getElementById(id);
+  if (!el || typeof Chart === 'undefined') return;
+  _ownCharts[id] = new Chart(el.getContext('2d'), config);
+}
+
+async function loadOwnerDashboard(){
+  if (!ME || ME.role !== 'admin') return;
+  const sEl = document.getElementById('ownStart'), eEl = document.getElementById('ownEnd');
+  if (!sEl.value || !eEl.value){
+    const t = new Date(); const from = new Date(t); from.setDate(t.getDate() - 29);
+    eEl.value = _ownFmtISO(t); sEl.value = _ownFmtISO(from);
+  }
+  const start = sEl.value, end = eEl.value;
+
+  // Loading states
+  document.getElementById('ownMisTbody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">⏳ Loading...</td></tr>';
+  document.getElementById('ownFmsDetail').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">⏳ Loading FMS steps...</div>';
+
+  // Phase 1: tasks + timeseries + full task list (main sheet — fast)
+  const [rows, ts, tk] = await Promise.all([
+    api(`/api/mis/all?start=${start}&end=${end}`),
+    api(`/api/owner/timeseries?start=${start}&end=${end}`),
+    api(`/api/owner/tasks?start=${start}&end=${end}`)
+  ]);
+  _ownCache.rows = Array.isArray(rows) ? rows : [];
+  _ownCache.series = (ts && ts.series) ? ts.series : [];
+  _ownCache.tasks = (tk && tk.tasks) ? tk.tasks : [];
+  _ownCache.fms = []; // reset; fms phase 2 me aayega
+  populateOwnDept(_ownCache.rows);
+  renderOwnerFromCache();
+  document.getElementById('kpiFms').textContent = '⏳';
+  document.getElementById('ownFmsDetail').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">⏳ FMS sheets load ho rahi hain...</div>';
+
+  // Phase 2: FMS (external sheets — slower)
+  const fms = await api('/api/mis/fms');
+  _ownCache.fms = Array.isArray(fms) ? fms : [];
+  renderOwnKpis(_ownCurrentRows(), _ownCache.fms);
+  renderOwnFmsChart(_ownCache.fms);
+  renderOwnFmsDetail(_ownCache.fms);
+}
+
+function _ownCurrentRows(){
+  const dept = document.getElementById('ownDept').value;
+  return dept ? _ownCache.rows.filter(r => (r.department||'') === dept) : _ownCache.rows;
+}
+
+// Dept dropdown change → sirf re-render (dobara fetch nahi)
+function renderOwnerFromCache(){
+  const rows = _ownCurrentRows();
+  renderOwnKpis(rows, _ownCache.fms);
+  renderOwnLine(_ownCache.series);
+  renderOwnStatus(rows);
+  renderOwnType(rows);
+  renderOwnDept(_ownCache.rows);
+  renderOwnScore(rows);
+  renderOwnFmsChart(_ownCache.fms);
+  renderOwnMisTable(rows);
+  renderOwnFmsDetail(_ownCache.fms);
+}
+
+function ownQuickRange(v){
+  const t = new Date(); let from = new Date(t);
+  if (v === 'mtd') from = new Date(t.getFullYear(), t.getMonth(), 1);
+  else if (v === 'ytd') from = new Date(t.getFullYear(), 0, 1);
+  else from.setDate(t.getDate() - (parseInt(v) - 1));
+  document.getElementById('ownStart').value = _ownFmtISO(from);
+  document.getElementById('ownEnd').value = _ownFmtISO(t);
+  loadOwnerDashboard();
+}
+
+function populateOwnDept(rows){
+  const sel = document.getElementById('ownDept'); const cur = sel.value;
+  const depts = [...new Set(rows.map(r => (r.department||'').trim()).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All Departments</option>' +
+    depts.map(d => `<option value="${d}"${d===cur?' selected':''}>${d}</option>`).join('');
+}
+
+function renderOwnKpis(rows, fms){
+  let total=0,done=0,pend=0,over=0,ss=0,sc=0;
+  for (const r of rows){ total+=r.totalAll||0; done+=r.completedAll||0; pend+=r.pendingAll||0; over+=r.overdueAll||0; if(r.overallScore!=null){ss+=r.overallScore;sc++;} }
+  const fmsPend = (fms||[]).reduce((a,f)=>a+(f.pending||0),0);
+  const fmsDone = (fms||[]).reduce((a,f)=>a+(f.done||0),0);
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('kpiTotal', total); set('kpiTotalSub', rows.length+' employees');
+  set('kpiDone', done); set('kpiDoneSub', total?Math.round(done/total*100)+'% complete':'');
+  set('kpiPend', pend); set('kpiPendSub', total?Math.round(pend/total*100)+'% pending':'');
+  set('kpiOver', over);
+  set('kpiScore', sc?(ss/sc).toFixed(1):'—');
+  set('kpiFms', fmsPend); set('kpiFmsSub', fmsDone+' steps done');
+}
+
+function renderOwnLine(series){
+  const labels = series.map(s => fmtDate(s.date));
+  _ownChart('ownLineChart', { type:'line', data:{ labels, datasets:[
+    {label:'Completed', data:series.map(s=>s.completed), borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.12)', fill:true, tension:.35, pointRadius:2},
+    {label:'Pending', data:series.map(s=>s.pending), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.10)', fill:true, tension:.35, pointRadius:2},
+    {label:'Overdue', data:series.map(s=>s.overdue), borderColor:'#f59e0b', borderDash:[5,4], fill:false, tension:.35, pointRadius:2}
+  ]}, options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+    onHover:_ownHoverPtr,
+    onClick:(e,els)=>{ if(els.length && series[els[0].index]) ownDrillDate(series[els[0].index].date); },
+    plugins:{ legend:{position:'top'} },
+    scales:{ y:{beginAtZero:true,ticks:{precision:0}}, x:{ticks:{maxRotation:60,font:{size:10},maxTicksLimit:14}} } } });
+}
+function _ownHoverPtr(e, els){ if(e && e.native && e.native.target) e.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
+
+function renderOwnStatus(rows){
+  let done=0,pend=0,rev=0;
+  for (const r of rows){ done+=r.completedAll||0; pend+=r.pendingAll||0; rev+=r.revisedAll||0; }
+  _ownChart('ownStatusChart', { type:'doughnut', data:{ labels:['Completed','Pending','Revised'],
+    datasets:[{ data:[done,pend,rev], backgroundColor:['#10b981','#ef4444','#f59e0b'], borderColor:'#fff', borderWidth:3, hoverOffset:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', onHover:_ownHoverPtr,
+      onClick:(e,els)=>{ if(els.length) ownDrillStatus(['completed','pending','revised'][els[0].index]); },
+      plugins:{legend:{position:'bottom'}} } });
+}
+
+function renderOwnType(rows){
+  let dDone=0,dPend=0,dRev=0,cDone=0,cPend=0;
+  for (const r of rows){ const d=r.delegation||{},c=r.checklist||{}; dDone+=d.completed||0; dPend+=d.pending||0; dRev+=d.revised||0; cDone+=c.completed||0; cPend+=c.pending||0; }
+  _ownChart('ownTypeChart', { type:'bar', data:{ labels:['Delegation','Checklist'], datasets:[
+    {label:'Completed', data:[dDone,cDone], backgroundColor:'#10b981'},
+    {label:'Pending', data:[dPend,cPend], backgroundColor:'#ef4444'},
+    {label:'Revised', data:[dRev,0], backgroundColor:'#f59e0b'}
+  ]}, options:{ responsive:true, maintainAspectRatio:false, onHover:_ownHoverPtr,
+    onClick:(e,els)=>{ if(els.length) ownDrillType(['delegation','checklist'][els[0].index]); },
+    scales:{ x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{precision:0}} }, plugins:{legend:{position:'top'}} } });
+}
+
+function renderOwnDept(allRows){
+  const m={};
+  for (const r of allRows){ const dep=(r.department||'—'); if(!m[dep])m[dep]={done:0,pend:0}; m[dep].done+=r.completedAll||0; m[dep].pend+=r.pendingAll||0; }
+  const labels=Object.keys(m).sort();
+  _ownChart('ownDeptChart', { type:'bar', data:{ labels, datasets:[
+    {label:'Completed', data:labels.map(l=>m[l].done), backgroundColor:'#3b82f6'},
+    {label:'Pending', data:labels.map(l=>m[l].pend), backgroundColor:'#f59e0b'}
+  ]}, options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, onHover:_ownHoverPtr,
+    onClick:(e,els)=>{ if(els.length && labels[els[0].index]) ownDrillDept(labels[els[0].index]); },
+    scales:{ x:{stacked:true,beginAtZero:true,ticks:{precision:0}}, y:{stacked:true} }, plugins:{legend:{position:'top'}} } });
+}
+
+function renderOwnScore(rows){
+  const sorted=[...rows].filter(r=>r.overallScore!=null).sort((a,b)=>b.overallScore-a.overallScore).slice(0,15);
+  const data=sorted.map(r=>r.overallScore);
+  const colors=data.map(s=> s>=-15?'#10b981': s>=-40?'#f59e0b':'#ef4444');
+  _ownChart('ownScoreChart', { type:'bar', data:{ labels:sorted.map(r=>r.name),
+    datasets:[{ label:'Score', data, backgroundColor:colors, borderRadius:4 }] },
+    options:{ responsive:true, maintainAspectRatio:false, onHover:_ownHoverPtr,
+      onClick:(e,els)=>{ if(els.length && sorted[els[0].index]) ownDrillEmployee(sorted[els[0].index].userId, sorted[els[0].index].name); },
+      plugins:{legend:{display:false}},
+      scales:{ y:{suggestedMax:0}, x:{ticks:{font:{size:9},maxRotation:70,minRotation:45}} } } });
+}
+
+function renderOwnFmsChart(fms){
+  const labels=[], pend=[], done=[], full=[], meta=[];
+  (fms||[]).forEach(f=>{
+    const short=(f.fmsName||'FMS').split(' ').slice(0,2).join(' ');
+    (f.steps||[]).forEach(st=>{ labels.push(`${short} · S${st.stepOrder}`); pend.push(st.pending||0); done.push(st.done||0); full.push(st.stepName||''); meta.push({fmsId:f.fmsId, stepId:st.stepId, stepName:st.stepName, pending:st.pending||0}); });
+  });
+  _ownChart('ownFmsChart', { type:'bar', data:{ labels, datasets:[
+    {label:'Done', data:done, backgroundColor:'#10b981'},
+    {label:'Pending', data:pend, backgroundColor:'#ef4444'}
+  ]}, options:{ responsive:true, maintainAspectRatio:false, onHover:_ownHoverPtr,
+    onClick:(e,els)=>{ if(els.length){ const m=meta[els[0].index]; if(m) ownDrillFmsStep(m.fmsId, m.stepId, m.stepName, m.pending); } },
+    scales:{ x:{stacked:true,ticks:{maxRotation:70,minRotation:45,font:{size:9}}}, y:{stacked:true,beginAtZero:true,ticks:{precision:0}} },
+    plugins:{ legend:{position:'top'}, tooltip:{callbacks:{ title:(items)=> full[items[0].dataIndex] || items[0].label }} } } });
+}
+
+function renderOwnMisTable(rows){
+  const tb=document.getElementById('ownMisTbody');
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No data for this range</td></tr>'; return; }
+  const sorted=[...rows].sort((a,b)=>(a.overallScore==null?999:a.overallScore)-(b.overallScore==null?999:b.overallScore));
+  tb.innerHTML=sorted.map(r=>{
+    const d=r.delegation||{},c=r.checklist||{};
+    const sc=_ownScoreColor(r.overallScore);
+    const scoreTxt=r.overallScore==null?'—':r.overallScore.toFixed(1);
+    const ov=r.overdueAll||0;
+    return `<tr onclick="ownDrillEmployee(${r.userId},'${_escHtml(r.name).replace(/'/g,"\\'")}')" style="cursor:pointer" title="Click for tasks">
+      <td style="font-weight:600;color:#1e293b">${_escHtml(r.name)}</td>
+      <td style="color:#64748b;font-size:12px">${_escHtml(r.department||'—')}</td>
+      <td>${d.pending||0}/${d.total||0}</td>
+      <td>${c.pending||0}/${c.total||0}</td>
+      <td style="color:${ov>0?'#dc2626':'#334155'};font-weight:${ov>0?'700':'400'}">${ov}</td>
+      <td>${r.revisedAll||0}</td>
+      <td style="color:#15803d;font-weight:600">${r.completedAll||0}</td>
+      <td><span class="score-pill" style="background:${sc.bg};color:${sc.c}">${scoreTxt}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderOwnFmsDetail(fms){
+  const box=document.getElementById('ownFmsDetail');
+  if(!fms || !fms.length){ box.innerHTML='<div style="text-align:center;color:#94a3b8;padding:16px;font-size:13px">Koi FMS data nahi (ya external sheets abhi load nahi hue).</div>'; return; }
+  box.innerHTML = fms.map(f=>{
+    const steps=(f.steps||[]);
+    const rowsHtml = steps.map(st=>{
+      const allDone = (st.pending||0)===0;
+      const lateBadge = st.late ? `<span class="mini-badge" style="background:#fee2e2;color:#b91c1c">🔴 ${st.late} late</span>` : '';
+      const stat = allDone
+        ? '<span class="mini-badge" style="background:#dcfce7;color:#15803d">✅ All done</span>'
+        : `<span class="mini-badge" style="background:#fef2f2;color:#dc2626">${st.pending} pending</span>`;
+      const clickable = (st.pending||0)>0;
+      return `<div class="fms-step-row"${clickable?` onclick="ownDrillFmsStep(${f.fmsId},${st.stepId},'${_escHtml(st.stepName||'').replace(/'/g,"\\'")}',${st.pending})" style="cursor:pointer" title="Click to see pending rows"`:''}>
+        <div class="fms-step-num">${st.stepOrder}</div>
+        <div style="flex:1;min-width:150px">
+          <div style="font-size:13px;font-weight:700;color:#1e293b">${_escHtml(st.stepName||'—')}</div>
+          <div style="font-size:11px;color:#94a3b8">👤 ${_escHtml(st.doers||'—')} · ${st.done||0} done / ${st.total||0} total</div>
+        </div>
+        ${stat} ${lateBadge}
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <div style="font-size:14px;font-weight:800;color:#1e293b">🏭 ${_escHtml(f.fmsName||'FMS')}</div>
+        <div style="font-size:12px;color:#64748b">${f.pending||0} pending · ${f.done||0} done</div>
+      </div>
+      ${rowsHtml || '<div style="color:#94a3b8;font-size:12px">No steps</div>'}
+    </div>`;
+  }).join('');
+}
+
+// ── Owner Dashboard: DRILL-DOWN popups (kahi bhi click → details) ──
+const _ownMap = {}; // chart index → filter maps
+
+function _ownTasksScope(){
+  const dept = document.getElementById('ownDept').value;
+  return dept ? _ownCache.tasks.filter(t => (t.department||'') === dept) : _ownCache.tasks;
+}
+
+function openOwnDetail(title, bodyHtml, countText){
+  document.getElementById('ownDetailTitle').innerHTML = title;
+  document.getElementById('ownDetailCount').textContent = countText || '';
+  document.getElementById('ownDetailBody').innerHTML = bodyHtml;
+  document.getElementById('ownDetailModal').classList.add('open');
+}
+
+function _ownTaskTable(tasks){
+  if(!tasks.length) return '<div style="text-align:center;color:#94a3b8;padding:24px">Koi task nahi mila.</div>';
+  return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <thead><tr>
+      <th style="padding:7px 9px;text-align:left;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#64748b">Type</th>
+      <th style="padding:7px 9px;text-align:left;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#64748b">Description</th>
+      <th style="padding:7px 9px;text-align:left;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#64748b">Doer</th>
+      <th style="padding:7px 9px;text-align:left;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#64748b;white-space:nowrap">Due</th>
+      <th style="padding:7px 9px;text-align:left;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#64748b">Status</th>
+    </tr></thead>
+    <tbody>${tasks.map(t=>{
+      const st = t.status==='revised'?'revised':(t.status==='completed'?'completed':'pending');
+      const stLabel = st.charAt(0).toUpperCase()+st.slice(1);
+      const dueTxt = fmtDate(t.due_date) + (t.overdue?' <span style="color:#dc2626;font-weight:700">(late)</span>':'');
+      return `<tr>
+        <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9"><span class="mini-badge" style="background:${t.type==='delegation'?'#eff6ff':'#f0fdf4'};color:${t.type==='delegation'?'#1d4ed8':'#15803d'}">${t.type==='delegation'?'Deleg.':'Checklist'}</span></td>
+        <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;color:#1e293b;max-width:280px">${_escHtml(t.description||'—')}</td>
+        <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;color:#475569;white-space:nowrap">${_escHtml(t.assignedToName||'—')}</td>
+        <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;color:#475569;white-space:nowrap">${dueTxt}</td>
+        <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9"><span class="status-badge ${st}">${stLabel}</span></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+function openOwnTasks(title, tasks){
+  openOwnDetail(title, _ownTaskTable(tasks), tasks.length+' task(s)');
+}
+
+function ownDrillKpi(kind){
+  const tasks = _ownTasksScope();
+  if(kind==='total')     return openOwnTasks('📋 All Tasks', tasks);
+  if(kind==='completed') return openOwnTasks('✅ Completed Tasks', tasks.filter(t=>t.status==='completed'));
+  if(kind==='pending')   return openOwnTasks('⏳ Pending Tasks', tasks.filter(t=>t.status==='pending'));
+  if(kind==='overdue')   return openOwnTasks('⚠️ Overdue Tasks', tasks.filter(t=>t.overdue));
+  if(kind==='score')     return ownScoreList();
+  if(kind==='fms')       return ownFmsPendingList();
+}
+
+function ownDrillEmployee(userId, name){
+  const tasks = _ownCache.tasks.filter(t => String(t.assignedTo) === String(userId));
+  openOwnTasks('👤 '+_escHtml(name)+' — Tasks', tasks);
+}
+function ownDrillDept(dept){
+  const tasks = _ownCache.tasks.filter(t => (t.department||'—') === dept);
+  openOwnTasks('🏢 '+_escHtml(dept)+' — Tasks', tasks);
+}
+function ownDrillStatus(status){
+  const tasks = _ownTasksScope().filter(t => t.status === status);
+  openOwnTasks((status==='completed'?'✅':status==='revised'?'🔄':'⏳')+' '+status.charAt(0).toUpperCase()+status.slice(1)+' Tasks', tasks);
+}
+function ownDrillType(type){
+  const tasks = _ownTasksScope().filter(t => t.type === type);
+  openOwnTasks((type==='delegation'?'📨 Delegation':'📋 Checklist')+' Tasks', tasks);
+}
+function ownDrillDate(dateISO){
+  const tasks = _ownTasksScope().filter(t => t.due_date === dateISO);
+  openOwnTasks('📅 '+fmtDate(dateISO)+' — Tasks', tasks);
+}
+
+function ownScoreList(){
+  const rows = [...( _ownCurrentRows() )].filter(r=>r.overallScore!=null).sort((a,b)=>a.overallScore-b.overallScore);
+  const html = `<div style="overflow-x:auto"><table class="own-mis-table" style="min-width:100%">
+    <thead><tr><th>Employee</th><th>Dept</th><th>Total</th><th>Pending</th><th>Overdue</th><th>Score</th></tr></thead>
+    <tbody>${rows.map(r=>{const sc=_ownScoreColor(r.overallScore);return `<tr onclick="closeModal('ownDetailModal');ownDrillEmployee(${r.userId},'${_escHtml(r.name).replace(/'/g,"\\'")}')" style="cursor:pointer">
+      <td style="font-weight:600">${_escHtml(r.name)}</td><td style="color:#64748b">${_escHtml(r.department||'—')}</td>
+      <td>${r.totalAll||0}</td><td>${r.pendingAll||0}</td><td style="color:${(r.overdueAll||0)>0?'#dc2626':'#334155'}">${r.overdueAll||0}</td>
+      <td><span class="score-pill" style="background:${sc.bg};color:${sc.c}">${r.overallScore.toFixed(1)}</span></td></tr>`;}).join('')}</tbody>
+  </table></div>`;
+  openOwnDetail('🎯 Employee Scores (worst first)', html, rows.length+' employees');
+}
+
+function ownFmsPendingList(){
+  const fms = _ownCache.fms || [];
+  const items = [];
+  fms.forEach(f => (f.steps||[]).forEach(st => { if((st.pending||0)>0) items.push({f, st}); }));
+  if(!items.length){ openOwnDetail('🏭 FMS Pending Steps', '<div style="text-align:center;color:#22c55e;padding:24px;font-weight:600">✅ Koi FMS step pending nahi!</div>'); return; }
+  const html = items.map(({f,st})=>`
+    <div class="fms-step-row" style="cursor:pointer" onclick="ownDrillFmsStep(${f.fmsId},${st.stepId},'${_escHtml(st.stepName).replace(/'/g,"\\'")}',${st.pending})">
+      <div class="fms-step-num">${st.stepOrder}</div>
+      <div style="flex:1;min-width:150px">
+        <div style="font-size:13px;font-weight:700;color:#1e293b">${_escHtml(st.stepName||'—')}</div>
+        <div style="font-size:11px;color:#94a3b8">${_escHtml(f.fmsName||'')} · 👤 ${_escHtml(st.doers||'—')}</div>
+      </div>
+      <span class="mini-badge" style="background:#fef2f2;color:#dc2626">${st.pending} pending</span>
+      ${st.late?`<span class="mini-badge" style="background:#fee2e2;color:#b91c1c">🔴 ${st.late} late</span>`:''}
+    </div>`).join('');
+  openOwnDetail('🏭 FMS Pending Steps (click to see rows)', html, items.length+' step(s) pending');
+}
+
+async function ownDrillFmsStep(fmsId, stepId, stepName, pending){
+  openOwnDetail('🏭 '+_escHtml(stepName), '<div style="text-align:center;color:#94a3b8;padding:22px">⏳ Loading rows...</div>');
+  const r = await api(`/api/fms-tasks/${fmsId}/steps/${stepId}/rows`);
+  const body = document.getElementById('ownDetailBody');
+  if(r && r.error){ body.innerHTML = `<div style="color:#dc2626;padding:16px">⚠️ ${_escHtml(r.error)}</div>`; return; }
+  const rows = (r && r.rows) ? r.rows : [];
+  document.getElementById('ownDetailCount').textContent = rows.length+' pending row(s)';
+  if(!rows.length){ body.innerHTML = '<div style="text-align:center;color:#22c55e;padding:22px;font-weight:600">✅ Is step ka koi pending row nahi</div>'; return; }
+  const cols = Object.keys(rows[0].data||{});
+  body.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <thead><tr>${cols.map(c=>`<th style="padding:7px 10px;text-align:left;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap;color:#374151">${_escHtml(c)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(rw=>`<tr>${cols.map(c=>`<td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;color:#334155">${_escHtml(rw.data[c]||'—')}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>`;
+}
 
 // ══════════════════════════════════════════════════════
 // NOTIFICATION BELL — apne checklist tasks jo 2 din ke andar due hain

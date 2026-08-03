@@ -1269,26 +1269,30 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
           return false;
         });
 
+        const isPresentVal = (v) => { const t=(v||'').trim(); return t!=='' && t.toUpperCase()!=='FALSE'; };
         const stepRows = fms.steps.map((step, si) => {
           const aIdx = colLetterToIdx(step.actualCol || '');
           const pIdx = colLetterToIdx(step.planCol   || '');
-          // Previous steps' actualCol indices for prerequisite checking
-          const prevActualIdxs = fms.steps.slice(0, si)
-            .map(s => colLetterToIdx(s.actualCol || ''))
-            .filter(i => i >= 0);
+          // Previous steps' plan + actual indices (conditional flow: empty plan = step skipped)
+          const prevSteps = fms.steps.slice(0, si).map(s => ({
+            actualIdx: colLetterToIdx(s.actualCol || ''),
+            planIdx:   colLetterToIdx(s.planCol   || '')
+          }));
           let pending=0, done=0, late=0;
           for (const row of dataRows) {
             const actual = aIdx>=0 ? (row[aIdx]||'').trim() : '';
             const plan   = pIdx>=0 ? (row[pIdx]||'').trim() : '';
             const isDoneVal = actual && actual.toUpperCase() !== 'FALSE';
             if (isDoneVal) { done++; continue; }
-            // Check if previous steps are done — if not, skip this row entirely
-            let prevNotDone = false;
-            for (const prevIdx of prevActualIdxs) {
-              const pv = (row[prevIdx]||'').trim();
-              if (!pv || pv.toUpperCase() === 'FALSE') { prevNotDone = true; break; }
+            // Step applicable tabhi jab uski plan date bhari ho (warna wo is row pe skip hai)
+            if (pIdx>=0 && !isPresentVal(plan)) continue;
+            // Har applicable previous step (plan date present) done hona chahiye
+            let prevBlocks = false;
+            for (const ps of prevSteps) {
+              const prevApplicable = ps.planIdx < 0 || isPresentVal(row[ps.planIdx]);
+              if (prevApplicable && ps.actualIdx >= 0 && !isPresentVal(row[ps.actualIdx])) { prevBlocks = true; break; }
             }
-            if (prevNotDone) continue; // row not yet eligible for this step
+            if (prevBlocks) continue; // row not yet eligible for this step
             pending++;
             if (plan && plan < todayStr) late++;
           }
@@ -1315,6 +1319,66 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
     }
     res.json(result);
   } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Owner Dashboard: daily task trend (line chart) — completed/pending/overdue by due_date ──
+app.get('/api/owner/timeseries', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    if (!start || !end) return res.status(400).json({ error: 'Dates required' });
+    const todayStr = today();
+    const [delTasks, chlTasks] = await Promise.all([
+      db.findAll('Delegation_Tasks'), db.findAll('Checklist_Tasks')
+    ]);
+    const map = {}; // date -> {completed, pending, overdue, total}
+    const bump = (t) => {
+      const due = t.due_date || '';
+      if (!due || due < start || due > end) return;
+      if (!map[due]) map[due] = { completed: 0, pending: 0, overdue: 0, total: 0 };
+      map[due].total++;
+      if (t.status === 'completed') map[due].completed++;
+      else if (t.status === 'pending') { map[due].pending++; if (due < todayStr) map[due].overdue++; }
+    };
+    for (const t of delTasks) bump(t);
+    for (const t of chlTasks) bump(t);
+    const series = Object.keys(map).sort().map(d => ({ date: d, ...map[d] }));
+    res.json({ series });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Owner Dashboard: full task list (drill-down popups ke liye) ──
+app.get('/api/owner/tasks', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    if (!start || !end) return res.status(400).json({ error: 'Dates required' });
+    const todayStr = today();
+    const [delTasks, chlTasks, allUsers] = await Promise.all([
+      db.findAll('Delegation_Tasks'), db.findAll('Checklist_Tasks'), db.findAll('Users')
+    ]);
+    const userMap = {};
+    for (const u of allUsers) userMap[String(u.id)] = u;
+    const out = [];
+    const pack = (t, type) => {
+      const due = t.due_date || '';
+      if (!due || due < start || due > end) return;
+      const u = userMap[String(t.assigned_to)];
+      out.push({
+        id: parseInt(t.id), type,
+        description: t.description || '',
+        assignedTo: parseInt(t.assigned_to) || 0,
+        assignedToName: u ? u.name : '',
+        department: u ? (u.department || '') : '',
+        assignedByName: userMap[String(t.assigned_by)]?.name || '',
+        status: t.status || 'pending',
+        due_date: due,
+        overdue: (t.status === 'pending' && due < todayStr)
+      });
+    };
+    for (const t of delTasks) pack(t, 'delegation');
+    for (const t of chlTasks) pack(t, 'checklist');
+    out.sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+    res.json({ tasks: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Employee Records ──
