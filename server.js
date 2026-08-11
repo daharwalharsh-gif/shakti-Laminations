@@ -1913,6 +1913,49 @@ async function ensureFormLinksTab(d) {
   }
 }
 
+// ── Forms embed helper: Google Sites DENY karta hai iframe, isliye uske andar ka
+// asli embeddable form (Apps Script /exec ya Google Form) nikaal ke wahi embed karo ──
+const _embedUrlCache = {}; // originalUrl → embeddable url (server lifetime cache)
+
+function _fetchText(url, depth = 0) {
+  return new Promise((resolve, reject) => {
+    if (depth > 4) return reject(new Error('too many redirects'));
+    require('https').get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
+      if ([301,302,303,307,308].includes(res.statusCode) && res.headers.location) {
+        res.destroy();
+        const next = res.headers.location.startsWith('http') ? res.headers.location : new URL(res.headers.location, url).href;
+        return resolve(_fetchText(next, depth + 1));
+      }
+      let s = ''; res.on('data', d => { s += d; }); res.on('end', () => resolve(s));
+    }).on('error', reject);
+  });
+}
+
+async function resolveEmbedUrl(url) {
+  const u = (url || '').trim();
+  if (!u) return u;
+  if (_embedUrlCache[u] !== undefined) return _embedUrlCache[u];
+  let out = u;
+  try {
+    if (/docs\.google\.com\/forms\//i.test(u)) {
+      out = /embedded=true/.test(u) ? u : (u + (u.includes('?') ? '&' : '?') + 'embedded=true');
+    } else if (/script\.google\.com\/macros\//i.test(u)) {
+      out = u; // Apps Script web app — iframe me chalta hai
+    } else if (/sites\.google\.com\//i.test(u)) {
+      // Sites page fetch karke andar ka embeddable form nikaalo
+      const html = await _fetchText(u);
+      const script = html.match(/https?:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/);
+      if (script) out = script[0];
+      else {
+        const form = html.match(/https?:\/\/docs\.google\.com\/forms\/[^"'\\ ]+viewform[^"'\\ ]*/);
+        if (form) out = /embedded=true/.test(form[0]) ? form[0] : (form[0] + (form[0].includes('?') ? '&' : '?') + 'embedded=true');
+      }
+    }
+  } catch (e) { out = u; }
+  _embedUrlCache[u] = out;
+  return out;
+}
+
 // Parse FMS row from sheet
 function parseFMSRow(row) {
   let steps = [];
@@ -2312,10 +2355,12 @@ app.get('/api/forms', requireAuth, async (req, res) => {
     const d = await getDB();
     await ensureFormLinksTab(d);
     const rows = await d.findAll('Form_Links');
-    const forms = rows
+    let forms = rows
       .filter(r => (r.name || '').trim() || (r.url || '').trim())
       .map(r => ({ id: parseInt(r.id), name: r.name || '', url: r.url || '', created_at: r.created_at || '' }))
       .sort((a, b) => a.id - b.id);
+    // Har form ke liye embeddable url resolve karo (Sites → andar ka Apps Script/Form)
+    forms = await Promise.all(forms.map(async f => ({ ...f, embed_url: await resolveEmbedUrl(f.url) })));
     res.json(forms);
   } catch(err) { res.status(500).json({ error: err.message }); }
 });

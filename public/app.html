@@ -4241,6 +4241,7 @@ async function loadForms() {
   list.innerHTML = forms.map(f => {
     const name = _escHtml(f.name);
     const url = _escHtml(f.url);
+    const embedUrl = _escHtml(f.embed_url || f.url);
     const del = isAdmin
       ? `<button onclick="deleteForm(${f.id},'${name.replace(/'/g,"\\'")}')" class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fecaca">✕ Delete</button>`
       : '';
@@ -4253,8 +4254,8 @@ async function loadForms() {
             ${del}
           </div>
         </div>
-        <iframe src="${url}" style="width:100%;height:820px;border:none;display:block;background:#f8fafc" loading="lazy"></iframe>
-        <div style="font-size:11px;color:#94a3b8;padding:8px 16px;border-top:1px solid #f1f5f9">If the form doesn't load here (Google may block embedding), use "Open in new tab" above.</div>
+        <iframe src="${embedUrl}" style="width:100%;height:820px;border:none;display:block;background:#f8fafc" loading="lazy"></iframe>
+        <div style="font-size:11px;color:#94a3b8;padding:8px 16px;border-top:1px solid #f1f5f9">If the form doesn't load here, use "Open in new tab" above.</div>
       </div>`;
   }).join('');
 }
