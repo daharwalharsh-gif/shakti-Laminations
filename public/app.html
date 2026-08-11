@@ -746,6 +746,10 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
       <span class="nav-label-text">All Systems</span>
     </div>
+    <div class="nav-item" id="nav-forms" onclick="navigate('forms',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <span class="nav-label-text">Forms</span>
+    </div>
     <div class="nav-divider"></div>
     <div class="nav-item" onclick="navigate('profile',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -1234,6 +1238,38 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
     </div>
   </div>
 
+  <!-- ── FORMS (embedded) ── -->
+  <div id="page-forms" class="page">
+    <div class="page-header">
+      <h2>📝 Forms</h2>
+      <button class="btn btn-outline btn-sm" onclick="clearApiCache();loadForms()">🔄 Refresh</button>
+    </div>
+
+    <!-- Add form (admin only) -->
+    <div id="addFormCard" style="display:none;background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px 18px;margin-bottom:16px">
+      <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:12px">➕ Add a Form</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:160px">
+          <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Form Name</label>
+          <input id="formName" type="text" placeholder="e.g. Sales Order Form"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box">
+        </div>
+        <div style="flex:2;min-width:220px">
+          <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Form Link (URL)</label>
+          <input id="formUrl" type="text" placeholder="https://sites.google.com/..." onkeydown="if(event.key==='Enter')addForm()"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box">
+        </div>
+        <button class="btn btn-primary" onclick="addForm()" id="addFormBtn">Add</button>
+      </div>
+      <div id="addFormErr" style="display:none;color:#dc2626;font-size:12.5px;margin-top:8px"></div>
+    </div>
+
+    <!-- Forms list (embedded iframes) -->
+    <div id="formsList">
+      <div style="text-align:center;padding:40px;color:#94a3b8;font-size:14px">⏳ Loading...</div>
+    </div>
+  </div>
+
   <!-- ── MIS REPORT ── -->
   <div id="page-mis" class="page">
     <div class="page-header">
@@ -1659,11 +1695,11 @@ button:disabled{opacity:.65;cursor:not-allowed !important;}
     <div class="form-group">
       <label>New Due Date</label>
       <input type="date" id="reviseDate"/>
-      <div style="font-size:12px;color:#64748b;margin-top:4px">Aaj se pehle ki date select nahi kar sakte</div>
+      <div style="font-size:12px;color:#64748b;margin-top:4px">Cannot pick a date before today</div>
     </div>
     <div class="form-group">
-      <label>Reason for Revision</label>
-      <textarea id="reviseReason" placeholder="Revision ki wajah likho..." style="min-height:70px;width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;resize:vertical"></textarea>
+      <label>Reason / Remarks for Revision</label>
+      <textarea id="reviseReason" placeholder="Write the reason / remarks for revision..." style="min-height:70px;width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;resize:vertical"></textarea>
     </div>
     <div class="modal-footer" style="justify-content:space-between">
       <button class="btn btn-outline" onclick="closeModal('reviseDateModal')">Cancel</button>
@@ -2290,7 +2326,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records','all-systems':'All Systems'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records','all-systems':'All Systems',forms:'Forms'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -2310,6 +2346,7 @@ function navigate(page, el) {
   if (page==='fms') loadFMSAdmin();
   if (page==='fms-tasks') loadFMSTasks();
   if (page==='all-systems') loadAllSystems();
+  if (page==='forms') loadForms();
   if (page==='mis') initMISDeptFilter();
   if (page==='records') loadRecords();
   window.scrollTo(0,0);
@@ -2732,7 +2769,7 @@ function renderDashTable(tasks, type) {
           ${(!isPC || t.type==='checklist') ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}')">Done</button>` : ''}
         ` : `
           ${(!isPC || t.type==='checklist') ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}')">Done</button>` : ''}
-          ${(!isPC && t.type!=='checklist') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
+          ${(!isPC || t.type==='checklist') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
         `}
       </td>
     </tr>`).join('');
@@ -2872,17 +2909,18 @@ function renderTasksTable() {
       <button class="action-btn delete" style="padding:4px 7px;margin-left:3px" onclick="deleteTask(${t.id},'${tasksType}')" title="Delete">🗑</button>
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px;margin-left:3px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
       ${!isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
-      ${!isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
+      ${!isCompleted && !isWaiting ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : (ME.role==='pc') ? `
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
       ${isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
+      ${isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : `
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
       ${!isCompleted && !isWaiting ? `
         <button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>
-        ${!isChecklist ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
+        <button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>
       ` : ''}
       ${isWaiting ? `
         <button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>
@@ -4179,6 +4217,73 @@ async function deleteLink(id, name) {
   if (r && r.error) { showToast(r.error, 'error'); return; }
   showToast('🗑️ Link delete ho gaya');
   loadAllSystems();
+}
+
+// ══════════════════════════════════════════════════════
+// FORMS — embedded Apps Script / Google Sites forms
+// ══════════════════════════════════════════════════════
+async function loadForms() {
+  const isAdmin = ME && ME.role === 'admin';
+  document.getElementById('addFormCard').style.display = isAdmin ? 'block' : 'none';
+  const list = document.getElementById('formsList');
+  list.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:14px">⏳ Loading...</div>';
+
+  const forms = await api('/api/forms');
+  if (forms && forms.error) {
+    list.innerHTML = `<div style="color:#dc2626;padding:20px;text-align:center;font-size:14px">⚠️ ${_escHtml(forms.error)}</div>`;
+    return;
+  }
+  if (!forms || !forms.length) {
+    list.innerHTML = `<div style="text-align:center;padding:40px;color:#94a3b8;font-size:14px">📝 No forms yet${isAdmin ? ' — add one above.' : '.'}</div>`;
+    return;
+  }
+
+  list.innerHTML = forms.map(f => {
+    const name = _escHtml(f.name);
+    const url = _escHtml(f.url);
+    const del = isAdmin
+      ? `<button onclick="deleteForm(${f.id},'${name.replace(/'/g,"\\'")}')" class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fecaca">✕ Delete</button>`
+      : '';
+    return `
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:18px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #f1f5f9">
+          <div style="font-size:15px;font-weight:700;color:#1e293b">📝 ${name}</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <a href="${url}" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none">↗ Open in new tab</a>
+            ${del}
+          </div>
+        </div>
+        <iframe src="${url}" style="width:100%;height:820px;border:none;display:block;background:#f8fafc" loading="lazy"></iframe>
+        <div style="font-size:11px;color:#94a3b8;padding:8px 16px;border-top:1px solid #f1f5f9">If the form doesn't load here (Google may block embedding), use "Open in new tab" above.</div>
+      </div>`;
+  }).join('');
+}
+
+async function addForm() {
+  const nameEl = document.getElementById('formName');
+  const urlEl = document.getElementById('formUrl');
+  const errEl = document.getElementById('addFormErr');
+  const btn = document.getElementById('addFormBtn');
+  errEl.style.display = 'none';
+  const name = nameEl.value.trim();
+  const url = urlEl.value.trim();
+  if (!name || !url) { errEl.textContent = 'Please fill both name and link.'; errEl.style.display = 'block'; return; }
+
+  btn.textContent = '⏳'; btn.disabled = true;
+  const r = await api('/api/forms', 'POST', { name, url });
+  btn.textContent = 'Add'; btn.disabled = false;
+  if (r && r.error) { errEl.textContent = r.error; errEl.style.display = 'block'; return; }
+  nameEl.value = ''; urlEl.value = '';
+  showToast('✅ Form added!');
+  loadForms();
+}
+
+async function deleteForm(id, name) {
+  if (!confirm(`Delete form "${name}"?`)) return;
+  const r = await api(`/api/forms/${id}`, 'DELETE');
+  if (r && r.error) { showToast(r.error, 'error'); return; }
+  showToast('🗑️ Form deleted');
+  loadForms();
 }
 
 // ══════════════════════════════════════════════════════

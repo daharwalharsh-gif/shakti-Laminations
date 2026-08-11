@@ -604,11 +604,15 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
     if (taskType === 'checklist' || taskType === 'both') {
       for (const t of allChl) {
-        if (!taskFilter(t, true)) continue;
-        if (t.status === 'pending') pending++;
-        else if (t.status === 'revised') revised++;
-        else if (t.status === 'completed') completed++;
+        // Base filter: user + date-range (future-hide NAHI — revised/completed hamesha count ho)
+        if (!taskFilter(t, false)) continue;
+        const due = t.due_date || '';
+        if (t.status === 'revised') { revised++; continue; }
+        if (t.status === 'completed') { completed++; continue; }
         if (t.status === 'pending') {
+          // Future pending checklist ko hide karo (jab tak explicit date range na ho)
+          if (!(dateFrom && dateTo) && due && due > todayStr) continue;
+          pending++;
           checklistPending.push({
             id: parseInt(t.id), type: 'checklist',
             description: t.description, status: t.status,
@@ -855,6 +859,7 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
     const upd = { status };
     if (type === 'delegation') upd.waiting_approval = '0';
     if (newDate && status === 'revised') upd.due_date = newDate;
+    if (status === 'revised' && reason !== undefined) upd.remarks = reason || '';
     await db.update(tabName, req.params.id, upd);
     res.json({ success: true, needsApproval: false });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1877,6 +1882,37 @@ async function ensureSystemLinksTab(d) {
   }
 }
 
+// Helper: ensure Form_Links tab exists (embedded "Forms" page) — pehli baar par default form seed
+async function ensureFormLinksTab(d) {
+  try {
+    await d.findAll('Form_Links');
+  } catch(e) {
+    try {
+      await withRetry(() => d.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        requestBody: { requests: [{ addSheet: { properties: { title: 'Form_Links' } } }] }
+      }));
+    } catch(e2) { /* already exists race */ }
+    await withRetry(() => d.sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: 'Form_Links!A1:D1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [['id','name','url','created_at']] }
+    }));
+    delete d._hdrCache['Form_Links'];
+    delete d._cache['Form_Links'];
+    // Seed default Sales Order Form (jo admin ne diya)
+    try {
+      const nowStr = new Date().toISOString().replace('T', ' ').split('.')[0];
+      await d.insert('Form_Links', {
+        name: 'Sales Order Form',
+        url: 'https://sites.google.com/e-marketing.io/sales-ordre-form-shakti-lam/form',
+        created_at: nowStr
+      });
+    } catch(e3) { /* seed optional */ }
+  }
+}
+
 // Parse FMS row from sheet
 function parseFMSRow(row) {
   let steps = [];
@@ -2264,6 +2300,46 @@ app.delete('/api/links/:id', requireAuth, requireAdmin, async (req, res) => {
     const d = await getDB();
     await ensureSystemLinksTab(d);
     await d.delete('System_Links', req.params.id);
+    res.json({ success: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
+// FORMS — embedded forms page (admin curates, sabko dikhta hai)
+// ══════════════════════════════════════════════════════
+app.get('/api/forms', requireAuth, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureFormLinksTab(d);
+    const rows = await d.findAll('Form_Links');
+    const forms = rows
+      .filter(r => (r.name || '').trim() || (r.url || '').trim())
+      .map(r => ({ id: parseInt(r.id), name: r.name || '', url: r.url || '', created_at: r.created_at || '' }))
+      .sort((a, b) => a.id - b.id);
+    res.json(forms);
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/forms', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureFormLinksTab(d);
+    let { name, url } = req.body;
+    name = (name || '').trim();
+    url = (url || '').trim();
+    if (!name || !url) return res.status(400).json({ error: 'Name aur link dono zaroori hain' });
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    const nowStr = new Date().toISOString().replace('T', ' ').split('.')[0];
+    const inserted = await d.insert('Form_Links', { name, url, created_at: nowStr });
+    res.json({ id: parseInt(inserted.id), name, url, created_at: nowStr });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/forms/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureFormLinksTab(d);
+    await d.delete('Form_Links', req.params.id);
     res.json({ success: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
