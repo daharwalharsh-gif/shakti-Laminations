@@ -502,14 +502,18 @@ app.get('/api/notifications/upcoming', requireAuth, async (req, res) => {
     const db = await getDB();
     const uid = String(req.session.userId);
     const todayStr = today();
-    const max = new Date(); max.setDate(max.getDate() + 2);
+    const max = new Date(); max.setDate(max.getDate() + 3); // 3 din pehle se
     const maxStr = max.toISOString().split('T')[0];
     const allChl = await db.findAll('Checklist_Tasks');
     const tasks = allChl
-      .filter(t => String(t.assigned_to) === uid
-        && t.status === 'pending'
-        && t.due_date && t.due_date >= todayStr && t.due_date <= maxStr)
-      .map(t => ({ id: parseInt(t.id), description: t.description || '', due_date: t.due_date }))
+      .filter(t => {
+        const freq = (t.frequency || '').toLowerCase().trim();
+        return String(t.assigned_to) === uid
+          && t.status === 'pending'
+          && freq && freq !== 'daily'              // sirf weekly/monthly/quarterly (daily chhod ke)
+          && t.due_date && t.due_date <= maxStr;   // 3 din pehle se + overdue (jab tak pending — aate rehna)
+      })
+      .map(t => ({ id: parseInt(t.id), description: t.description || '', due_date: t.due_date, frequency: (t.frequency || '').toLowerCase().trim() }))
       .sort((a, b) => a.due_date.localeCompare(b.due_date));
     res.json({ count: tasks.length, tasks });
   } catch (err) { res.status(500).json({ error: err.message }); }

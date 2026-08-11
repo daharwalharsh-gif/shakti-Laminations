@@ -4105,13 +4105,22 @@ async function loadNotifBell() {
 }
 
 function notifWhenLabel(due) {
+  const iso = d => new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().split('T')[0];
   const t = new Date(); t.setHours(0,0,0,0);
-  const todayStr = new Date(t.getTime() - t.getTimezoneOffset()*60000).toISOString().split('T')[0];
-  const tom = new Date(t); tom.setDate(tom.getDate()+1);
-  const tomStr = new Date(tom.getTime() - tom.getTimezoneOffset()*60000).toISOString().split('T')[0];
-  if (due <= todayStr) return `<span class="when" style="color:#dc2626">📌 Due today (${fmtDate(due)})</span>`;
-  if (due === tomStr)   return `<span class="when" style="color:#d97706">⏰ Due tomorrow (${fmtDate(due)})</span>`;
-  return `<span class="when" style="color:#2563eb">🔔 Due in 2 days (${fmtDate(due)})</span>`;
+  const todayStr = iso(t);
+  const day = n => { const x = new Date(t); x.setDate(x.getDate()+n); return iso(x); };
+  if (due < todayStr)      return `<span class="when" style="color:#b91c1c">🔴 Overdue (${fmtDate(due)})</span>`;
+  if (due === todayStr)    return `<span class="when" style="color:#dc2626">📌 Due today (${fmtDate(due)})</span>`;
+  if (due === day(1))      return `<span class="when" style="color:#d97706">⏰ Due tomorrow (${fmtDate(due)})</span>`;
+  if (due === day(2))      return `<span class="when" style="color:#2563eb">🔔 Due in 2 days (${fmtDate(due)})</span>`;
+  return `<span class="when" style="color:#2563eb">🔔 Due in 3 days (${fmtDate(due)})</span>`;
+}
+
+function _notifFreqBadge(freq) {
+  if (!freq) return '';
+  const map = { weekly:['Weekly','#eff6ff','#1d4ed8'], monthly:['Monthly','#f0fdf4','#15803d'], quarterly:['Quarterly','#fdf4ff','#7c3aed'] };
+  const m = map[freq] || [freq.charAt(0).toUpperCase()+freq.slice(1), '#f1f5f9', '#64748b'];
+  return `<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:${m[1]};color:${m[2]};margin-left:6px">${m[0]}</span>`;
 }
 
 function renderNotifPanel() {
@@ -4123,7 +4132,7 @@ function renderNotifPanel() {
   }
   panel.innerHTML = head + `<div class="notif-list">` + _notifTasks.map(t => `
     <div class="notif-item">
-      <div class="desc">${t.description || '—'}</div>
+      <div class="desc">${t.description || '—'}${_notifFreqBadge(t.frequency)}</div>
       ${notifWhenLabel(t.due_date)}
     </div>`).join('') + `</div>`;
 }
