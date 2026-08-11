@@ -2380,6 +2380,24 @@ app.post('/api/forms', requireAuth, requireAdmin, async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+app.put('/api/forms/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await getDB();
+    await ensureFormLinksTab(d);
+    const upd = {};
+    if (req.body.name !== undefined) upd.name = String(req.body.name).trim();
+    if (req.body.url !== undefined) {
+      let url = String(req.body.url).trim();
+      if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+      upd.url = url;
+      delete _embedUrlCache[url]; // url badla to embed dobara resolve ho
+    }
+    if (upd.name !== undefined && !upd.name) return res.status(400).json({ error: 'Name khaali nahi ho sakta' });
+    await d.update('Form_Links', req.params.id, upd);
+    res.json({ success: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 app.delete('/api/forms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const d = await getDB();
