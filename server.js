@@ -2355,12 +2355,10 @@ app.get('/api/forms', requireAuth, async (req, res) => {
     const d = await getDB();
     await ensureFormLinksTab(d);
     const rows = await d.findAll('Form_Links');
-    let forms = rows
+    const forms = rows
       .filter(r => (r.name || '').trim() || (r.url || '').trim())
       .map(r => ({ id: parseInt(r.id), name: r.name || '', url: r.url || '', created_at: r.created_at || '' }))
       .sort((a, b) => a.id - b.id);
-    // Har form ke liye embeddable url resolve karo (Sites → andar ka Apps Script/Form)
-    forms = await Promise.all(forms.map(async f => ({ ...f, embed_url: await resolveEmbedUrl(f.url) })));
     res.json(forms);
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
