@@ -4247,12 +4247,17 @@ async function loadForms() {
          <button onclick="deleteForm(${f.id},'${name.replace(/'/g,"\\'")}')" class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fecaca">✕ Delete</button>`
       : '';
     return `
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:18px;overflow:hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #f1f5f9">
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:14px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px;cursor:pointer" onclick="toggleForm(${f.id})">
           <div style="font-size:15px;font-weight:700;color:#1e293b">📝 ${name}</div>
-          <div style="display:flex;gap:8px;align-items:center">${adminBtns}</div>
+          <div style="display:flex;gap:8px;align-items:center" onclick="event.stopPropagation()">
+            <button id="formToggleBtn_${f.id}" onclick="toggleForm(${f.id})" class="btn btn-primary btn-sm">▶ Open Form</button>
+            ${adminBtns}
+          </div>
         </div>
-        <iframe src="${embedUrl}" style="width:100%;height:820px;border:none;display:block;background:#f8fafc" loading="lazy"></iframe>
+        <div id="formFrameWrap_${f.id}" style="display:none;border-top:1px solid #f1f5f9">
+          <iframe id="formFrame_${f.id}" data-src="${embedUrl}" style="width:100%;height:820px;border:none;display:block;background:#f8fafc" loading="lazy"></iframe>
+        </div>
       </div>`;
   }).join('');
 }
@@ -4274,6 +4279,23 @@ async function addForm() {
   nameEl.value = ''; urlEl.value = '';
   showToast('✅ Form added!');
   loadForms();
+}
+
+// Form ki details button click par khulti/band hoti hain (iframe pehli baar khulne par hi load hota hai)
+function toggleForm(id) {
+  const wrap = document.getElementById('formFrameWrap_' + id);
+  const btn = document.getElementById('formToggleBtn_' + id);
+  const iframe = document.getElementById('formFrame_' + id);
+  if (!wrap) return;
+  const isOpen = wrap.style.display !== 'none';
+  if (isOpen) {
+    wrap.style.display = 'none';
+    if (btn) btn.innerHTML = '▶ Open Form';
+  } else {
+    if (iframe && !iframe.src && iframe.dataset.src) iframe.src = iframe.dataset.src; // lazy load
+    wrap.style.display = 'block';
+    if (btn) btn.innerHTML = '▼ Hide Form';
+  }
 }
 
 async function editForm(id) {
